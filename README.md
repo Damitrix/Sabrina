@@ -1,2 +1,2 @@
 # Sabrina
-A DIscord bot with a Sense for Feet
+A Discord bot with a Sense for Feet
