@@ -1,0 +1,16 @@
+C:\Users\Chris\source\repos\Sabrina\Sabrina\obj\Debug\netcoreapp2.2\Sabrina.csprojAssemblyReference.cache
+C:\Users\Chris\source\repos\Sabrina\Sabrina\obj\Debug\netcoreapp2.2\Sabrina.csproj.CoreCompileInputs.cache
+C:\Users\Chris\source\repos\Sabrina\Sabrina\obj\Debug\netcoreapp2.2\Sabrina.AssemblyInfoInputs.cache
+C:\Users\Chris\source\repos\Sabrina\Sabrina\obj\Debug\netcoreapp2.2\Sabrina.AssemblyInfo.cs
+C:\Users\Chris\source\repos\Sabrina\Sabrina\bin\Debug\netcoreapp2.2\Sabrina.deps.json
+C:\Users\Chris\source\repos\Sabrina\Sabrina\bin\Debug\netcoreapp2.2\Sabrina.runtimeconfig.json
+C:\Users\Chris\source\repos\Sabrina\Sabrina\bin\Debug\netcoreapp2.2\Sabrina.runtimeconfig.dev.json
+C:\Users\Chris\source\repos\Sabrina\Sabrina\bin\Debug\netcoreapp2.2\Sabrina.dll
+C:\Users\Chris\source\repos\Sabrina\Sabrina\bin\Debug\netcoreapp2.2\Sabrina.pdb
+C:\Users\Chris\source\repos\Sabrina\Sabrina\bin\Debug\netcoreapp2.2\Configuration.dll
+C:\Users\Chris\source\repos\Sabrina\Sabrina\bin\Debug\netcoreapp2.2\DungeonHelper.dll
+C:\Users\Chris\source\repos\Sabrina\Sabrina\bin\Debug\netcoreapp2.2\Configuration.pdb
+C:\Users\Chris\source\repos\Sabrina\Sabrina\bin\Debug\netcoreapp2.2\DungeonHelper.pdb
+C:\Users\Chris\source\repos\Sabrina\Sabrina\obj\Debug\netcoreapp2.2\Sabrina.csproj.CopyComplete
+C:\Users\Chris\source\repos\Sabrina\Sabrina\obj\Debug\netcoreapp2.2\Sabrina.dll
+C:\Users\Chris\source\repos\Sabrina\Sabrina\obj\Debug\netcoreapp2.2\Sabrina.pdb
