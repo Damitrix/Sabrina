@@ -12,7 +12,7 @@ namespace Sabrina.Commands
     {
         [Command("urbandictionary"), Aliases("urban")]
         [Description("Search for something on urban dictionary")]
-        public async Task AssignEdgesWithResultAsync(CommandContext ctx, [Description("The word(s) to search for on Urban Dictionary")] params string[] searchText)
+        public async Task UrbanDictionary(CommandContext ctx, [Description("The word(s) to search for on Urban Dictionary")] params string[] searchText)
         {
             var joinedSearch = "term=" + String.Join(" ", searchText);
 

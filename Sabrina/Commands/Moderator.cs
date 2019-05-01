@@ -5,10 +5,6 @@ using DSharpPlus.Interactivity;
 using Sabrina.Entities;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
-using System.Drawing.Drawing2D;
-using System.Drawing.Imaging;
-using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -22,7 +18,6 @@ namespace Sabrina.Commands
         private const string YesRegex = "[Yy][Ee]?[Ss]?";
 
         [Command("crash"), Description("Makes the bot crash")]
-        [RequirePermissions(DSharpPlus.Permissions.ManageMessages)]
         public async Task CrashTask(CommandContext ctx)
         {
             var interactivity = ctx.Client.GetInteractivityModule();
@@ -118,7 +113,7 @@ namespace Sabrina.Commands
             await ctx.RespondAsync($"I moved some Stuff to {channel.Mention}");
         }
 
-        [Command("purge"), Description("Removes X Messages"), RequireRolesAttribute("mistress", "minion", "techno kitty")]
+        [Command("purge"), Description("Removes X Messages")]
         [RequirePermissions(DSharpPlus.Permissions.ManageMessages)]
         public async Task PurgeMessages(CommandContext ctx, [Description("Amount of Messages to move")] int msgAmount)
         {

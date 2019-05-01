@@ -9,7 +9,7 @@ namespace Sabrina.Models
         {
             SankakuImageTag = new HashSet<SankakuImageTag>();
             SankakuTagBlacklist = new HashSet<SankakuTagBlacklist>();
-            SankakuTagWhitelist = new HashSet<SankakuTagWhitelist>();
+            SankakuTagWhiteList = new HashSet<SankakuTagWhiteList>();
         }
 
         public int Id { get; set; }
@@ -17,6 +17,6 @@ namespace Sabrina.Models
 
         public virtual ICollection<SankakuImageTag> SankakuImageTag { get; set; }
         public virtual ICollection<SankakuTagBlacklist> SankakuTagBlacklist { get; set; }
-        public virtual ICollection<SankakuTagWhitelist> SankakuTagWhitelist { get; set; }
+        public virtual ICollection<SankakuTagWhiteList> SankakuTagWhiteList { get; set; }
     }
 }

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace Sabrina.Models
 {
-    public partial class SankakuTagWhitelist
+    public partial class SankakuTagWhiteList
     {
         public int Id { get; set; }
         public int TagId { get; set; }

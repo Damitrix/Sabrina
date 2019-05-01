@@ -10,12 +10,13 @@ public static class WheelExtension
         Ruin = 4,
         Orgasm = 8,
         Edge = 16,
-        Task = 32
+        Task = 32,
+        All = ~0
     }
 
     public enum WheelDifficultyPreference
     {
-        Baby,
+        Baby = 1,
         Easy,
         Default,
         Hard,

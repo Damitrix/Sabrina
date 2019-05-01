@@ -1,14 +1,16 @@
 ﻿// --------------------------------------------------------------------------------------------------------------------
 // <copyright file="TumblrBot.cs" company="SalemsTools">
-//   Do whatever
+//     Do whatever
 // </copyright>
 // <summary>
-//   The tumblr bot.
+// The tumblr bot.
 // </summary>
 // --------------------------------------------------------------------------------------------------------------------
 
-using System.Timers;
 using Configuration;
+using DSharpPlus.Exceptions;
+using System.Collections.Generic;
+using System.Timers;
 
 namespace Sabrina.Bots
 {
@@ -25,7 +27,7 @@ namespace Sabrina.Bots
     using System.Threading.Tasks;
 
     /// <summary>
-    ///     The tumblr bot.
+    /// The tumblr bot.
     /// </summary>
     internal class TumblrBot
     {
@@ -37,68 +39,69 @@ namespace Sabrina.Bots
             _client = client;
         }
 
-        public async Task InitializeAsync()
+        public static async Task<TumblrPost> GetRandomTumblrPost()
         {
-            _postTimer = new Timer(TimeSpan.FromMinutes(1).TotalMilliseconds)
-            {
-                AutoReset = true
-            };
-            _postTimer.Elapsed += _postTimer_Elapsed;
-            _postTimer.Start();
-
-            await Task.Run(async () => await UpdateDatabase());
-        }
-
-        public static async Task PostRandom(DiscordClient client, DiscordContext context, DiscordChannel[] channels)
-        {
-            TumblrPosts post = null;
+            TumblrPost post = null;
+            var context = new DiscordContext();
             int cDays = 30;
             Random rnd = new Random();
+            int retry = 0;
 
-            while (post == null)
+            var minDateTime = DateTime.Now - TimeSpan.FromDays(cDays);
+
+            while (retry < 5)
             {
-                var minDateTime = DateTime.Now - TimeSpan.FromDays(cDays);
                 var validPosts = context.TumblrPosts.Where(tPost => (tPost.LastPosted == null || tPost.LastPosted < minDateTime) && tPost.IsLoli < 1);
                 var count = validPosts.Count();
 
-                if (count == 0)
+                var rndInt = rnd.Next(count);
+                var tumblrPost = validPosts.Skip(rndInt).First();
+
+                post = await GetTumblrPostById(tumblrPost.TumblrId);
+
+                if (post == null)
                 {
-                    cDays--;
+                    post = null;
+                    retry++;
                     continue;
                 }
-                foreach (var channel in channels)
+            }
+
+            return post;
+        }
+
+        public static async Task PostRandom(DiscordContext context, IEnumerable<DiscordChannel> channels)
+        {
+            Random rnd = new Random();
+
+            foreach (var channel in channels)
+            {
+                var post = await GetRandomTumblrPost();
+
+                if (post == null)
                 {
-                    var rndInt = rnd.Next(count);
-                    post = validPosts.Skip(rndInt).First();
-
-                    var tumblrPost = GetTumblrPostById(post.TumblrId);
-
-                    if(tumblrPost == null)
-                    {
-                        post = null;
-                        continue;
-                    }
-
-                    var builder = new DiscordEmbedBuilder()
-                    {
-                        Author = new DiscordEmbedBuilder.EmbedAuthor()
-                        {
-                            Name = "YourAnimeAddiction"
-                        },
-                        Color = DiscordColor.Orange,
-                        Footer = new DiscordEmbedBuilder.EmbedFooter()
-                        {
-                            Text = post.TumblrId.ToString()
-                        },
-                        ImageUrl = tumblrPost.Response.Posts[0].Photos.First().AltSizes.OrderByDescending(size => size.Height).First().Url,
-                        Title = context.Puns.Skip(new Random().Next(context.Puns.Count() - 1)).First().Text
-                    };
-
-                    post.LastPosted = DateTime.Now;
-
-                    await context.SaveChangesAsync();
-                    await channel.SendMessageAsync(embed: builder.Build());
+                    // Can't reach tumblr rn
+                    return;
                 }
+
+                TumblrPosts dbPost = await context.TumblrPosts.FindAsync(post.Response.Posts[0].Id);
+
+                var builder = new DiscordEmbedBuilder()
+                {
+                    Author = new DiscordEmbedBuilder.EmbedAuthor()
+                    {
+                        Name = "YourAnimeAddiction"
+                    },
+                    Color = DiscordColor.Orange,
+                    ImageUrl = post.Response.Posts[0].Photos.First().AltSizes.OrderByDescending(size => size.Height).First().Url,
+                    Title = context.Puns.Skip(new Random().Next(context.Puns.Count() - 1)).First().Text
+                };
+
+                dbPost.LastPosted = DateTime.Now;
+                dbPost.TumblrId = post.Response.Posts[0].Id;
+
+                await context.SaveChangesAsync();
+                await channel.SendMessageAsync(embed: builder.Build());
             }
         }
 
@@ -112,7 +115,7 @@ namespace Sabrina.Bots
 
             var msg = await e.Client.Guilds.First(g => g.Key == e.Message.Channel.GuildId).Value.GetChannel(e.Message.ChannelId)
                 .GetMessageAsync(e.Message.Id);
-            if(msg.Embeds.Count != 1)
+            if (msg.Embeds.Count != 1)
             {
                 return;
             }
@@ -133,12 +136,22 @@ namespace Sabrina.Bots
             await msg.DeleteAsync(":underage:");
         }
 
+        public async Task InitializeAsync()
+        {
+            _postTimer = new Timer(TimeSpan.FromMinutes(1).TotalMilliseconds)
+            {
+                AutoReset = true
+            };
+            _postTimer.Elapsed += PostTimer_Elapsed;
+            _postTimer.Start();
+
+            await Task.Run(async () => await UpdateDatabase());
+        }
+
         /// <summary>
-        ///     Returns count of all Posts
+        /// Returns count of all Posts
         /// </summary>
-        /// <returns>
-        ///     A Count of all Posts.
-        /// </returns>
+        /// <returns>A Count of all Posts.</returns>
         private static int GetPostCount()
         {
             string json = string.Empty;
@@ -164,10 +177,8 @@ namespace Sabrina.Bots
         /// Get's a specific Tumblr Post
         /// </summary>
         /// <param name="id">The ID of the Tumblr Post</param>
-        /// <returns>
-        ///     The <see cref="TumblrPost" />.
-        /// </returns>
-        private static TumblrPost GetTumblrPostById(long id)
+        /// <returns>The <see cref="TumblrPost"/>.</returns>
+        private static async Task<TumblrPost> GetTumblrPostById(long id)
         {
             string json = string.Empty;
             var url = @"http://api.tumblr.com/v2/blog/deliciousanimefeet.tumblr.com/posts";
@@ -182,14 +193,13 @@ namespace Sabrina.Bots
 
             try
             {
-                response = (HttpWebResponse)request.GetResponse();
+                response = (HttpWebResponse)(await request.GetResponseAsync());
             }
-             catch(Exception)
+            catch (Exception)
             {
-
             }
-                
-            if(response  == null)
+
+            if (response == null)
             {
                 return null;
             }
@@ -204,14 +214,10 @@ namespace Sabrina.Bots
         }
 
         /// <summary>
-        ///     Gets a specific Tumblr post
+        /// Gets a specific Tumblr post
         /// </summary>
-        /// <param name="offset">
-        ///     The offset of the post
-        /// </param>
-        /// <returns>
-        ///     The <see cref="TumblrPost" />.
-        /// </returns>
+        /// <param name="offset">The offset of the post</param>
+        /// <returns>The <see cref="TumblrPost"/>.</returns>
         private static async Task<TumblrPost> GetTumblrPostsByOffset(int offset)
         {
             string json = string.Empty;
@@ -234,7 +240,30 @@ namespace Sabrina.Bots
             return TumblrPost.FromJson(json);
         }
 
-        private async void _postTimer_Elapsed(object sender, ElapsedEventArgs e)
+        private async Task PostRandom()
+        {
+            var context = new DiscordContext();
+
+            var channelIds = context.SabrinaSettings.Where(ss => ss.FeetChannel != null).AsEnumerable().Select(ss => ss.FeetChannel).ToArray();
+
+            List<DiscordChannel> channels = new List<DiscordChannel>();
+
+            foreach (var id in channelIds)
+            {
+                try
+                {
+                    channels.Add(await _client.GetChannelAsync(Convert.ToUInt64(id)));
+                }
+                catch (UnauthorizedException)
+                {
+                    continue;
+                }
+            }
+
+            await PostRandom(context, channels);
+        }
+
+        private async void PostTimer_Elapsed(object sender, ElapsedEventArgs e)
         {
             try
             {
@@ -256,15 +285,6 @@ namespace Sabrina.Bots
                 await Console.Error.WriteLineAsync("Error in TumblrBot").ConfigureAwait(false);
                 await Console.Error.WriteLineAsync(ex.Message).ConfigureAwait(false);
             }
-        }
-
-        private async Task PostRandom()
-        {
-            var context = new DiscordContext();
-
-            var channels = context.SabrinaSettings.Where(ss => ss.FeetChannel != null).AsEnumerable().Select(async ss => await _client.GetChannelAsync(Convert.ToUInt64(ss.FeetChannel))).ToArray();
-            Task.WaitAll(channels);
-            await PostRandom(_client, context, channels.Select(t => t.Result).ToArray());
         }
 
         private async Task UpdateDatabase()

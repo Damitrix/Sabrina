@@ -10,9 +10,12 @@
 namespace Sabrina.Entities.WheelOutcomes
 {
     using DSharpPlus.Entities;
-    using Sabrina.Entities.Persistent;
     using Sabrina.Models;
     using System;
+    using System.Collections.Generic;
+    using System.Linq;
+    using System.Threading.Tasks;
+    using WheelOutcome = Persistent.WheelOutcome;
 
     internal sealed class Ban : WheelOutcome
     {
@@ -28,26 +31,41 @@ namespace Sabrina.Entities.WheelOutcomes
         /// <param name="outcome">
         /// The outcome.
         /// </param>
-        /// <param name="settings">
-        /// The settings.
+        /// <param name="_settings">
+        /// The _settings.
         /// </param>
-        public Ban(WheelExtension.Outcome outcome, UserSettings settings, DiscordContext context) : base(outcome, settings, context)
+        public Ban(WheelExtension.Outcome outcome, Dictionary<UserSettingExtension.SettingID, UserSetting> settings, List<WheelUserItem> items, Dependencies dependencies) : base(outcome, settings, items, dependencies)
         {
-            if (settings.WheelTaskPreference == null)
+        }
+
+        public override int Chance { get; protected set; } = 10;
+        public override TimeSpan DenialTime { get; protected set; }
+        public override DiscordEmbed Embed { get; protected set; }
+        public override WheelExtension.Outcome Outcome { get; protected set; }
+        public override string Text { get; protected set; }
+        public override TimeSpan WheelLockedTime { get; protected set; }
+
+        public override Task BuildAsync()
+        {
+            if (!Outcome.HasFlag(WheelExtension.Outcome.Task))
             {
-                settings.WheelTaskPreference = (int)WheelExtension.WheelTaskPreferenceSetting.Default;
-                context.SaveChanges();
+                Outcome = WheelExtension.Outcome.NotSet;
+                return Task.CompletedTask;
             }
 
-            if (settings.WheelTaskPreference != null && ((WheelExtension.WheelTaskPreferenceSetting)settings.WheelTaskPreference).HasFlag(WheelExtension.WheelTaskPreferenceSetting.Task))
+            if (_settings.Any(setting => setting.Key == UserSettingExtension.SettingID.WheelTaskPreference))
             {
-                this.Chance *= 6;
+                var preference = (WheelExtension.WheelTaskPreferenceSetting)int.Parse(_settings.First(setting => setting.Key == UserSettingExtension.SettingID.WheelTaskPreference).Value.Value);
+
+                if (preference.HasFlag(WheelExtension.WheelTaskPreferenceSetting.Task))
+                {
+                    this.Chance *= 6;
+                }
             }
 
             DiscordEmbedBuilder builder = new DiscordEmbedBuilder();
 
             int time = Helpers.RandomGenerator.RandomInt(this.minBanTime, this.maxBanTime);
-            settings.WheelDifficulty = settings.WheelDifficulty ?? 2;
 
             if (Helpers.RandomGenerator.RandomInt(0, 2) == 0)
             {
@@ -63,7 +81,14 @@ namespace Sabrina.Entities.WheelOutcomes
             {
                 int edgeAmount = Helpers.RandomGenerator.RandomInt(this.minEdgeAmount, this.maxEdgeAmount) * 2;
 
-                switch ((WheelExtension.WheelDifficultyPreference)settings.WheelDifficulty)
+                WheelExtension.WheelDifficultyPreference difficulty = WheelExtension.WheelDifficultyPreference.Default;
+
+                if (_settings.ContainsKey(UserSettingExtension.SettingID.WheelDifficulty))
+                {
+                    difficulty = _settings.First(setting => setting.Key == UserSettingExtension.SettingID.WheelDifficulty).Value.GetValue<WheelExtension.WheelDifficultyPreference>();
+                }
+
+                switch (difficulty)
                 {
                     case WheelExtension.WheelDifficultyPreference.Baby:
                         edgeAmount = edgeAmount / 4;
@@ -93,13 +118,8 @@ namespace Sabrina.Entities.WheelOutcomes
 
             this.Embed = builder.Build();
             this.Outcome = WheelExtension.Outcome.Task;
-        }
 
-        public override int Chance { get; protected set; } = 10;
-        public override TimeSpan DenialTime { get; protected set; }
-        public override DiscordEmbed Embed { get; protected set; }
-        public override WheelExtension.Outcome Outcome { get; protected set; }
-        public override string Text { get; protected set; }
-        public override TimeSpan WheelLockedTime { get; protected set; }
+            return Task.CompletedTask;
+        }
     }
 }

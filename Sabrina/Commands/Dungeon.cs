@@ -1,8 +1,4 @@
-﻿using System;
-using System.Linq;
-using System.Text.RegularExpressions;
-using System.Threading.Tasks;
-using DSharpPlus.CommandsNext;
+﻿using DSharpPlus.CommandsNext;
 using DSharpPlus.CommandsNext.Attributes;
 using DSharpPlus.Entities;
 using DSharpPlus.Interactivity;
@@ -11,10 +7,14 @@ using Sabrina.Dungeon;
 using Sabrina.Dungeon.Rooms;
 using Sabrina.Entities;
 using Sabrina.Models;
+using System;
+using System.Linq;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 
 namespace Sabrina.Commands
 {
-    [Group("dungeon")]
+    [Group("dungeon"), Hidden]
     internal class Dungeon
     {
         private readonly DiscordContext _context;
@@ -34,11 +34,16 @@ namespace Sabrina.Commands
             Room room = null;
 
             DungeonLogic.Dungeon.DungeonDifficulty dungeonDifficulty = DungeonLogic.Dungeon.DungeonDifficulty.Medium;
-            int? difficulty = (await _context.UserSettings.FindAsync(Convert.ToInt64(ctx.User.Id))).DungeonDifficulty;
+            var difficulty = _context.UserSetting.Where(setting => setting.UserId == Convert.ToInt64(ctx.User.Id)).FirstOrDefault(setting => setting.SettingId == (int)UserSettingExtension.SettingID.DungeonDifficulty);
+
+            if (difficulty == null)
+            {
+                dungeonDifficulty = DungeonLogic.Dungeon.DungeonDifficulty.Medium;
+            }
 
             if (difficulty != null)
             {
-                dungeonDifficulty = (DungeonLogic.Dungeon.DungeonDifficulty) difficulty.Value;
+                dungeonDifficulty = (DungeonLogic.Dungeon.DungeonDifficulty)Int32.Parse(difficulty.Value);
             }
 
             if (session != null)
@@ -50,7 +55,7 @@ namespace Sabrina.Commands
             else
             {
                 DungeonLogic.Dungeon.DungeonLength dungeonLength =
-                    (DungeonLogic.Dungeon.DungeonLength) Enum.Parse(typeof(DungeonLogic.Dungeon.DungeonLength), length);
+                    (DungeonLogic.Dungeon.DungeonLength)Enum.Parse(typeof(DungeonLogic.Dungeon.DungeonLength), length);
 
                 // Start new Session
                 dungeon = new DungeonLogic.Dungeon(1, dungeonLength, dungeonDifficulty);
@@ -140,7 +145,7 @@ namespace Sabrina.Commands
                 await ctx.RespondAsync("Did you finish my Task?");
                 MessageContext m = await ctx.Client.GetInteractivityModule().WaitForMessageAsync(
                     x => x.Channel.Id == ctx.Channel.Id && x.Author.Id == ctx.Member.Id
-                                                        && Regex.IsMatch(x.Content, Helpers.RegexHelper.ConfirmRegex),
+                                                        && Helpers.RegexHelper.ConfirmRegex.IsMatch(x.Content),
                     TimeSpan.FromMilliseconds(room.WaitAfterMessage / 4));
 
                 if (m == null)
@@ -159,11 +164,10 @@ namespace Sabrina.Commands
 
                     await ctx.TriggerTypingAsync();
                     await Task.Delay(room.WaitAfterMessage);
-                    
                 }
 
                 // If Task Successful
-                if (Regex.IsMatch(m.Message.Content, Helpers.RegexHelper.YesRegex))
+                if (Helpers.RegexHelper.YesRegex.IsMatch(m.Message.Content))
                 {
                     // Win Message
                     builder = new DiscordEmbedBuilder
@@ -179,7 +183,7 @@ namespace Sabrina.Commands
                 }
 
                 // If Task failed
-                else if (Regex.IsMatch(m.Message.Content, Helpers.RegexHelper.NoRegex))
+                else if (Helpers.RegexHelper.NoRegex.IsMatch(m.Message.Content))
                 {
                     // TODO: On Loose
                     // Loose Message
@@ -225,8 +229,9 @@ namespace Sabrina.Commands
 
             if (session == null)
             {
-                _context.UserSettings.Find(Convert.ToInt64(ctx.User.Id)).DungeonDifficulty =
-                    (int) Enum.Parse(typeof(UserSettingsExtension.DungeonDifficulty), difficulty);
+                var userSetting = _context.UserSetting.Where(setting => setting.UserId == Convert.ToInt64(ctx.User.Id)).FirstOrDefault(setting => setting.SettingId == (int)UserSettingExtension.SettingID.DungeonDifficulty);
+
+                userSetting.Value = ((int)Enum.Parse(typeof(UserSettingExtension.DungeonDifficulty), difficulty)).ToString();
                 await _context.SaveChangesAsync();
             }
         }

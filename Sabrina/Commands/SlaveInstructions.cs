@@ -48,7 +48,7 @@ namespace Sabrina.Commands
         /// </returns>
         [Command("getreports")]
         [Description("Get all Reports in a specified time")]
-        [RequireRolesAttribute("mistress")]
+        [RequireRolesAttribute("mistress", "master", "dom", "domme")]
         public async Task GetReportsAsync(CommandContext ctx, string time)
         {
             TimeSpan timespan;
@@ -65,7 +65,8 @@ namespace Sabrina.Commands
 
             try
             {
-                var reports = _context.Slavereports.Where(report => report.TimeOfReport > DateTime.Now - timespan);
+                var minTime = DateTime.Now - timespan;
+                var reports = _context.Slavereports.Where(report => report.TimeOfReport > minTime);
 
                 List<Tuple<long, List<Slavereports>>> groupedReports =
                     new List<Tuple<long, List<Slavereports>>>();
@@ -175,59 +176,31 @@ namespace Sabrina.Commands
             [Description("How long it took (5m = 5 minutes | 5m12s = 5 minutes, 12 seconds)")]
             string time)
         {
-            if (ctx.Channel.Name != Config.Channels.Instruction)
-            {
-                await ctx.RespondAsync($"Please report only in the {Config.Channels.Instruction} channel");
-                return;
-            }
+            // TODO: Check for Channel
 
             IQueryable<Slavereports> slaveReports =
                 from report in _context.Slavereports.Where(report => report.TimeOfReport > DateTime.Now.AddHours(-20))
                 where report.UserId == Convert.ToInt64(ctx.User.Id)
                 select report;
 
-            if (slaveReports.Any() && Convert.ToInt64(ctx.Message.Author.Id) != 347004618183540740)
+            var lastReport = slaveReports.FirstOrDefault();
+
+            if (lastReport != null)
             {
-                var lastReport = slaveReports.First();
-
-                if (lastReport != null)
-                {
-                    await ctx.RespondAsync(
-                        $"You can only report once every 20 hours. You can report again in {TimeResolver.TimeToString(lastReport.TimeOfReport.AddHours(20) - DateTime.Now)}");
-                    var dm = await (await ctx.Guild.GetMemberAsync(Config.Users.Aki)).CreateDmChannelAsync();
-                    await dm.SendMessageAsync(
-                        $"{ctx.Message.Author} has reported {TimeResolver.TimeToString(lastReport.TimeOfReport.AddHours(20) - DateTime.Now)} too early.");
-                    return;
-                }
-            }
-            else if (Convert.ToInt64(ctx.Message.Author.Id) == 347004618183540740)
-            {
-                IQueryable<Slavereports> slaveReportsPj =
-                    from report in _context.Slavereports.Where(report => report.TimeOfReport > DateTime.Now.AddHours(-8))
-                    where report.UserId == Convert.ToInt64(ctx.User.Id)
-                    select report;
-
-                if (slaveReportsPj.Any())
-                {
-                    var lastReport = slaveReportsPj.First();
-
-                    if (lastReport != null)
-                    {
-                        await ctx.RespondAsync(
-                            $"You can only report once every 8 hours. You can report again in {TimeResolver.TimeToString(lastReport.TimeOfReport.AddHours(8) - DateTime.Now)}");
-                        var dm = await (await ctx.Guild.GetMemberAsync(Config.Users.Aki)).CreateDmChannelAsync();
-                        await dm.SendMessageAsync(
-                            $"{ctx.Message.Author} has reported {TimeResolver.TimeToString(lastReport.TimeOfReport.AddHours(8) - DateTime.Now)} too early.");
-                        return;
-                    }
-                }
+                await ctx.RespondAsync(
+                    $"You can only report once every 20 hours. You can report again in {TimeResolver.TimeToString(lastReport.TimeOfReport.AddHours(20) - DateTime.Now)}");
+                var dm = await (await ctx.Guild.GetMemberAsync(Config.Users.Aki)).CreateDmChannelAsync();
+                await dm.SendMessageAsync(
+                    $"{ctx.Message.Author} has reported {TimeResolver.TimeToString(lastReport.TimeOfReport.AddHours(20) - DateTime.Now)} too early.");
+                return;
             }
 
-            if (Enum.TryParse(outcome, out WheelExtension.Outcome result))
+            if (Enum.TryParse(outcome, true, out WheelExtension.Outcome result))
             {
                 TimeSpan span;
                 try
                 {
+                    var user = await UserExtension.GetUser(ctx.Message.Author.Id);
                     span = TimeResolver.GetTimeSpan(time);
 
                     await Task.Run(
@@ -235,12 +208,14 @@ namespace Sabrina.Commands
                             {
                                 var report = new Slavereports()
                                 {
-                                    TimeOfReport = ctx.Message.Timestamp.LocalDateTime,
-                                    UserId = Convert.ToInt64(Convert.ToInt64(ctx.Message.Author.Id)),
+                                    TimeOfReport = DateTime.Now,
+                                    UserId = user.UserId,
                                     Edges = edges,
                                     TimeSpan = span.Ticks,
                                     SessionOutcome = outcome
                                 };
+
+                                _context.Slavereports.Add(report);
 
                                 await _context.SaveChangesAsync();
                             });

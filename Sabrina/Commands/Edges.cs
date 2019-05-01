@@ -16,7 +16,7 @@ namespace Sabrina.Commands
             _context = new DiscordContext();
         }
 
-        [Command("assignedges")]
+        [Command("assignedges"), Hidden]
         [Description("Assign Edges to yourself")]
         public async Task AssignEdgesAsync(CommandContext ctx, int edges)
         {
@@ -25,7 +25,7 @@ namespace Sabrina.Commands
                 await ctx.RespondAsync("You cannot assign yourself less than 1 Edge. For obvious reasons");
             }
 
-            var user = await _context.Users.FindAsync(Convert.ToInt64(Convert.ToInt64(ctx.Message.Author.Id)));
+            var user = await UserExtension.GetUser(Convert.ToInt64(Convert.ToInt64(ctx.Message.Author.Id)));
 
             user.WalletEdges += edges;
             await _context.SaveChangesAsync();
@@ -34,12 +34,12 @@ namespace Sabrina.Commands
                 $"I've assigned you {edges} edges. Your balance is now {user.WalletEdges} edges.");
         }
 
-        [Command("assignedgesto")]
+        [Command("assignedgesto"), Hidden]
         [Description("Assign Edges to someone")]
         [RequireRolesAttribute("mistress", "aki's cutie")]
         public async Task AssignEdgesToAsync(CommandContext ctx, DiscordUser dcUser, int edges)
         {
-            var user = await _context.Users.FindAsync(Convert.ToInt64(Convert.ToInt64(ctx.Message.Author.Id)));
+            var user = await UserExtension.GetUser(Convert.ToInt64(Convert.ToInt64(ctx.Message.Author.Id)));
 
             user.WalletEdges += edges;
 
@@ -49,23 +49,23 @@ namespace Sabrina.Commands
                 $"I've assigned {dcUser.Username} {edges} edges. Their balance is now {user.WalletEdges} edges.");
         }
 
-        [Command("edges")]
+        [Command("edges"), Hidden]
         [Description("Show how much Edges you have left")]
         public async Task DisplayEdges(CommandContext ctx)
         {
-            var user = await _context.Users.FindAsync(Convert.ToInt64(Convert.ToInt64(ctx.Message.Author.Id)));
+            var user = await UserExtension.GetUser(Convert.ToInt64(Convert.ToInt64(ctx.Message.Author.Id)));
 
             await ctx.RespondAsync(
                 $"Your Edge Balance is {user.WalletEdges} edges.");
         }
 
-        [Command("edge")]
+        [Command("edge"), Hidden]
         [Aliases("e")]
         [Description("Remove an Edge from your wallet")]
         [Cooldown(1, 20, CooldownBucketType.User)]
         public async Task HasEdgedAsync(CommandContext ctx)
         {
-            var user = await _context.Users.FindAsync(Convert.ToInt64(Convert.ToInt64(ctx.Message.Author.Id)));
+            var user = await UserExtension.GetUser(Convert.ToInt64(Convert.ToInt64(ctx.Message.Author.Id)));
 
             user.WalletEdges -= 1;
             user.TotalEdges += 1;

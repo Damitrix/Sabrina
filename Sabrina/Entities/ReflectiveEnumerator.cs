@@ -7,10 +7,6 @@ namespace Sabrina.Entities
 {
     public static class ReflectiveEnumerator
     {
-        static ReflectiveEnumerator()
-        {
-        }
-
         public static IEnumerable<T> GetEnumerableOfType<T>(params object[] constructorArgs) where T : class
         {
             List<T> objects = new List<T>();

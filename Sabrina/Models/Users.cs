@@ -10,7 +10,10 @@ namespace Sabrina.Models
             DungeonSession = new HashSet<DungeonSession>();
             Messages = new HashSet<Messages>();
             SankakuImageVote = new HashSet<SankakuImageVote>();
+            ScenarioSavePlayer = new HashSet<ScenarioSavePlayer>();
             Slavereports = new HashSet<Slavereports>();
+            UserSetting = new HashSet<UserSetting>();
+            WheelUserItem = new HashSet<WheelUserItem>();
         }
 
         public long UserId { get; set; }
@@ -28,10 +31,12 @@ namespace Sabrina.Models
         public int? TotalEdges { get; set; }
 
         public virtual KinkHashes KinkHashes { get; set; }
-        public virtual UserSettings UserSettings { get; set; }
         public virtual ICollection<DungeonSession> DungeonSession { get; set; }
         public virtual ICollection<Messages> Messages { get; set; }
         public virtual ICollection<SankakuImageVote> SankakuImageVote { get; set; }
+        public virtual ICollection<ScenarioSavePlayer> ScenarioSavePlayer { get; set; }
         public virtual ICollection<Slavereports> Slavereports { get; set; }
+        public virtual ICollection<UserSetting> UserSetting { get; set; }
+        public virtual ICollection<WheelUserItem> WheelUserItem { get; set; }
     }
 }

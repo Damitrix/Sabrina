@@ -13,11 +13,10 @@ namespace Sabrina.Commands
     using DSharpPlus.CommandsNext.Attributes;
     using DSharpPlus.Entities;
     using Sabrina.Entities;
-    using Sabrina.Entities.Persistent;
-    using Sabrina.Models;
     using System.Collections.Generic;
     using System.Linq;
     using System.Threading.Tasks;
+    using WheelOutcome = Entities.Persistent.WheelOutcome;
 
     /// <summary>
     /// The information Command Group.
@@ -60,7 +59,7 @@ namespace Sabrina.Commands
             await ctx.RespondAsync(embed: builder.Build());
         }
 
-        [Command("random")]
+        [Command("random"), Description("Spits out a cryptographically random number between x and y")]
         public async Task RollRandomAsync(CommandContext ctx, int Start, int End)
         {
             await ctx.RespondAsync(Helpers.RandomGenerator.RandomInt(Start, End + 1).ToString());

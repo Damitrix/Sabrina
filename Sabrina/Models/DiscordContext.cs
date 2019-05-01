@@ -1,7 +1,4 @@
-﻿using System;
-using Configuration;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Metadata;
+﻿using Microsoft.EntityFrameworkCore;
 
 namespace Sabrina.Models
 {
@@ -32,30 +29,46 @@ namespace Sabrina.Models
         public virtual DbSet<PornhubVideos> PornhubVideos { get; set; }
         public virtual DbSet<Puns> Puns { get; set; }
         public virtual DbSet<SabrinaSettings> SabrinaSettings { get; set; }
+        public virtual DbSet<SabrinaVersion> SabrinaVersion { get; set; }
         public virtual DbSet<SankakuImage> SankakuImage { get; set; }
         public virtual DbSet<SankakuImageTag> SankakuImageTag { get; set; }
         public virtual DbSet<SankakuImageVote> SankakuImageVote { get; set; }
         public virtual DbSet<SankakuPost> SankakuPost { get; set; }
         public virtual DbSet<SankakuTag> SankakuTag { get; set; }
         public virtual DbSet<SankakuTagBlacklist> SankakuTagBlacklist { get; set; }
-        public virtual DbSet<SankakuTagWhitelist> SankakuTagWhitelist { get; set; }
+        public virtual DbSet<SankakuTagWhiteList> SankakuTagWhiteList { get; set; }
+        public virtual DbSet<ScenarioLocation> ScenarioLocation { get; set; }
+        public virtual DbSet<ScenarioLocationModifier> ScenarioLocationModifier { get; set; }
+        public virtual DbSet<ScenarioLocationModifierLink> ScenarioLocationModifierLink { get; set; }
+        public virtual DbSet<ScenarioName> ScenarioName { get; set; }
+        public virtual DbSet<ScenarioRace> ScenarioRace { get; set; }
+        public virtual DbSet<ScenarioRaceLink> ScenarioRaceLink { get; set; }
+        public virtual DbSet<ScenarioRaceModifier> ScenarioRaceModifier { get; set; }
+        public virtual DbSet<ScenarioRaceNameLink> ScenarioRaceNameLink { get; set; }
+        public virtual DbSet<ScenarioSave> ScenarioSave { get; set; }
+        public virtual DbSet<ScenarioSavePlayer> ScenarioSavePlayer { get; set; }
+        public virtual DbSet<ScenarioSavePlayerNameLink> ScenarioSavePlayerNameLink { get; set; }
         public virtual DbSet<Slavereports> Slavereports { get; set; }
         public virtual DbSet<TumblrPosts> TumblrPosts { get; set; }
-        public virtual DbSet<UserSettings> UserSettings { get; set; }
         public virtual DbSet<Users> Users { get; set; }
+        public virtual DbSet<UserSetting> UserSetting { get; set; }
+        public virtual DbSet<WaifuJoiAlbum> WaifuJoiAlbum { get; set; }
+        public virtual DbSet<WaifuJoiContentPost> WaifuJoiContentPost { get; set; }
         public virtual DbSet<WheelChances> WheelChances { get; set; }
+        public virtual DbSet<WheelOutcome> WheelOutcome { get; set; }
+        public virtual DbSet<WheelUserItem> WheelUserItem { get; set; }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
             if (!optionsBuilder.IsConfigured)
             {
-                optionsBuilder.UseSqlServer(Config.DatabaseConnectionString);
+                optionsBuilder.UseSqlServer(Configuration.Config.DatabaseConnectionString);
             }
         }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            modelBuilder.HasAnnotation("ProductVersion", "2.2.0-rtm-35687");
+            modelBuilder.HasAnnotation("ProductVersion", "3.0.0-preview3.19153.1");
 
             modelBuilder.Entity<Boost>(entity =>
             {
@@ -237,7 +250,9 @@ namespace Sabrina.Models
             {
                 entity.HasKey(e => e.MessageId);
 
-                entity.Property(e => e.MessageId).HasColumnName("MessageID");
+                entity.Property(e => e.MessageId)
+                    .HasColumnName("MessageID")
+                    .ValueGeneratedNever();
 
                 entity.Property(e => e.AuthorId).HasColumnName("AuthorID");
 
@@ -299,6 +314,17 @@ namespace Sabrina.Models
                 entity.Property(e => e.LastWheelHelpPost).HasColumnType("datetime");
             });
 
+            modelBuilder.Entity<SabrinaVersion>(entity =>
+            {
+                entity.HasKey(e => e.VersionNumber);
+
+                entity.ToTable("Sabrina.Version");
+
+                entity.Property(e => e.VersionNumber).ValueGeneratedNever();
+
+                entity.Property(e => e.Description).IsRequired();
+            });
+
             modelBuilder.Entity<SankakuImage>(entity =>
             {
                 entity.ToTable("Sankaku.Image");
@@ -315,6 +341,12 @@ namespace Sabrina.Models
             modelBuilder.Entity<SankakuImageTag>(entity =>
             {
                 entity.ToTable("Sankaku.ImageTag");
+
+                entity.HasIndex(e => e.ImageId)
+                    .HasName("IX_Sankaku.ImageTag");
+
+                entity.HasIndex(e => e.TagId)
+                    .HasName("IX_Sankaku.ImageTag_1");
 
                 entity.Property(e => e.Id).HasColumnName("ID");
 
@@ -364,7 +396,7 @@ namespace Sabrina.Models
 
                 entity.Property(e => e.Id).HasColumnName("ID");
 
-                entity.Property(e => e.Date).HasColumnType("datetime");
+                entity.Property(e => e.Date).HasColumnType("datetime2(1)");
 
                 entity.Property(e => e.ImageId).HasColumnName("ImageID");
 
@@ -407,9 +439,9 @@ namespace Sabrina.Models
                     .HasConstraintName("FK_Sankaku.TagBlacklist_Sankaku.Tag");
             });
 
-            modelBuilder.Entity<SankakuTagWhitelist>(entity =>
+            modelBuilder.Entity<SankakuTagWhiteList>(entity =>
             {
-                entity.ToTable("Sankaku.TagWhitelist");
+                entity.ToTable("Sankaku.TagWhiteList");
 
                 entity.Property(e => e.Id).HasColumnName("ID");
 
@@ -418,10 +450,201 @@ namespace Sabrina.Models
                 entity.Property(e => e.TagId).HasColumnName("TagID");
 
                 entity.HasOne(d => d.Tag)
-                    .WithMany(p => p.SankakuTagWhitelist)
+                    .WithMany(p => p.SankakuTagWhiteList)
                     .HasForeignKey(d => d.TagId)
                     .OnDelete(DeleteBehavior.ClientSetNull)
-                    .HasConstraintName("FK_Sankaku.TagWhitelist_Sankaku.Tag");
+                    .HasConstraintName("FK_Sankaku.TagWhiteList_Sankaku.Tag");
+            });
+
+            modelBuilder.Entity<ScenarioLocation>(entity =>
+            {
+                entity.ToTable("Scenario.Location");
+
+                entity.Property(e => e.Id).HasColumnName("ID");
+
+                entity.Property(e => e.Name).IsRequired();
+            });
+
+            modelBuilder.Entity<ScenarioLocationModifier>(entity =>
+            {
+                entity.ToTable("Scenario.LocationModifier");
+
+                entity.Property(e => e.Id).HasColumnName("ID");
+
+                entity.Property(e => e.Name).IsRequired();
+            });
+
+            modelBuilder.Entity<ScenarioLocationModifierLink>(entity =>
+            {
+                entity.ToTable("Scenario.LocationModifierLink");
+
+                entity.Property(e => e.Id).HasColumnName("ID");
+
+                entity.Property(e => e.LocationId).HasColumnName("LocationID");
+
+                entity.Property(e => e.LocationModifierId).HasColumnName("LocationModifierID");
+
+                entity.HasOne(d => d.Location)
+                    .WithMany(p => p.ScenarioLocationModifierLink)
+                    .HasForeignKey(d => d.LocationId)
+                    .OnDelete(DeleteBehavior.ClientSetNull)
+                    .HasConstraintName("FK_Scenario.LocationModifierLink_Scenario.Location");
+
+                entity.HasOne(d => d.LocationModifier)
+                    .WithMany(p => p.ScenarioLocationModifierLink)
+                    .HasForeignKey(d => d.LocationModifierId)
+                    .OnDelete(DeleteBehavior.ClientSetNull)
+                    .HasConstraintName("FK_Scenario.LocationModifierLink_Scenario.LocationModifier");
+            });
+
+            modelBuilder.Entity<ScenarioName>(entity =>
+            {
+                entity.ToTable("Scenario.Name");
+
+                entity.Property(e => e.Id).HasColumnName("ID");
+
+                entity.Property(e => e.Text).IsRequired();
+            });
+
+            modelBuilder.Entity<ScenarioRace>(entity =>
+            {
+                entity.ToTable("Scenario.Race");
+
+                entity.Property(e => e.Id).HasColumnName("ID");
+
+                entity.Property(e => e.Name).IsRequired();
+            });
+
+            modelBuilder.Entity<ScenarioRaceLink>(entity =>
+            {
+                entity.ToTable("Scenario.RaceLink");
+
+                entity.Property(e => e.Id).HasColumnName("ID");
+
+                entity.Property(e => e.RaceId).HasColumnName("RaceID");
+
+                entity.Property(e => e.RaceModifierId).HasColumnName("RaceModifierID");
+
+                entity.HasOne(d => d.Race)
+                    .WithMany(p => p.ScenarioRaceLink)
+                    .HasForeignKey(d => d.RaceId)
+                    .OnDelete(DeleteBehavior.ClientSetNull)
+                    .HasConstraintName("FK_Scenario.RaceLink_Scenario.Race");
+
+                entity.HasOne(d => d.RaceModifier)
+                    .WithMany(p => p.ScenarioRaceLink)
+                    .HasForeignKey(d => d.RaceModifierId)
+                    .OnDelete(DeleteBehavior.ClientSetNull)
+                    .HasConstraintName("FK_Scenario.RaceLink_Scenario.RaceModifier");
+            });
+
+            modelBuilder.Entity<ScenarioRaceModifier>(entity =>
+            {
+                entity.ToTable("Scenario.RaceModifier");
+
+                entity.Property(e => e.Id).HasColumnName("ID");
+
+                entity.Property(e => e.Name).IsRequired();
+            });
+
+            modelBuilder.Entity<ScenarioRaceNameLink>(entity =>
+            {
+                entity.ToTable("Scenario.RaceNameLink");
+
+                entity.Property(e => e.Id).HasColumnName("ID");
+
+                entity.Property(e => e.NameId).HasColumnName("NameID");
+
+                entity.Property(e => e.RaceId).HasColumnName("RaceID");
+
+                entity.HasOne(d => d.Name)
+                    .WithMany(p => p.ScenarioRaceNameLink)
+                    .HasForeignKey(d => d.NameId)
+                    .OnDelete(DeleteBehavior.ClientSetNull)
+                    .HasConstraintName("FK_Scenario.RaceNameLink_Scenario.Name");
+
+                entity.HasOne(d => d.Race)
+                    .WithMany(p => p.ScenarioRaceNameLink)
+                    .HasForeignKey(d => d.RaceId)
+                    .OnDelete(DeleteBehavior.ClientSetNull)
+                    .HasConstraintName("FK_Scenario.RaceNameLink_Scenario.Race");
+            });
+
+            modelBuilder.Entity<ScenarioSave>(entity =>
+            {
+                entity.ToTable("Scenario.Save");
+
+                entity.Property(e => e.Id).HasColumnName("ID");
+
+                entity.Property(e => e.CreationDate).HasColumnType("datetime");
+
+                entity.Property(e => e.LocationId).HasColumnName("LocationID");
+
+                entity.Property(e => e.LocationModifierId).HasColumnName("LocationModifierID");
+
+                entity.Property(e => e.Name).IsRequired();
+            });
+
+            modelBuilder.Entity<ScenarioSavePlayer>(entity =>
+            {
+                entity.ToTable("Scenario.SavePlayer");
+
+                entity.Property(e => e.Id).HasColumnName("ID");
+
+                entity.Property(e => e.RaceId).HasColumnName("RaceID");
+
+                entity.Property(e => e.RaceModifierId).HasColumnName("RaceModifierID");
+
+                entity.Property(e => e.SaveId).HasColumnName("SaveID");
+
+                entity.Property(e => e.UserId).HasColumnName("UserID");
+
+                entity.HasOne(d => d.Race)
+                    .WithMany(p => p.ScenarioSavePlayer)
+                    .HasForeignKey(d => d.RaceId)
+                    .OnDelete(DeleteBehavior.ClientSetNull)
+                    .HasConstraintName("FK_Scenario.SavePlayer_Scenario.Race");
+
+                entity.HasOne(d => d.RaceModifier)
+                    .WithMany(p => p.ScenarioSavePlayer)
+                    .HasForeignKey(d => d.RaceModifierId)
+                    .OnDelete(DeleteBehavior.ClientSetNull)
+                    .HasConstraintName("FK_Scenario.SavePlayer_Scenario.RaceModifier");
+
+                entity.HasOne(d => d.Save)
+                    .WithMany(p => p.ScenarioSavePlayer)
+                    .HasForeignKey(d => d.SaveId)
+                    .OnDelete(DeleteBehavior.ClientSetNull)
+                    .HasConstraintName("FK_Scenario.SavePlayer_Scenario.SavePlayer");
+
+                entity.HasOne(d => d.User)
+                    .WithMany(p => p.ScenarioSavePlayer)
+                    .HasForeignKey(d => d.UserId)
+                    .OnDelete(DeleteBehavior.ClientSetNull)
+                    .HasConstraintName("FK_Scenario.SavePlayer_Users");
+            });
+
+            modelBuilder.Entity<ScenarioSavePlayerNameLink>(entity =>
+            {
+                entity.ToTable("Scenario.SavePlayerNameLink");
+
+                entity.Property(e => e.Id).HasColumnName("ID");
+
+                entity.Property(e => e.NameId).HasColumnName("NameID");
+
+                entity.Property(e => e.SavePlayerId).HasColumnName("SavePlayerID");
+
+                entity.HasOne(d => d.Name)
+                    .WithMany(p => p.ScenarioSavePlayerNameLink)
+                    .HasForeignKey(d => d.NameId)
+                    .OnDelete(DeleteBehavior.ClientSetNull)
+                    .HasConstraintName("FK_Scenario.SavePlayerNameLink_Scenario.Name");
+
+                entity.HasOne(d => d.SavePlayer)
+                    .WithMany(p => p.ScenarioSavePlayerNameLink)
+                    .HasForeignKey(d => d.SavePlayerId)
+                    .OnDelete(DeleteBehavior.ClientSetNull)
+                    .HasConstraintName("FK_Scenario.SavePlayerNameLink_Scenario.SavePlayer");
             });
 
             modelBuilder.Entity<Slavereports>(entity =>
@@ -457,19 +680,21 @@ namespace Sabrina.Models
                 entity.Property(e => e.LastPosted).HasColumnType("datetime");
             });
 
-            modelBuilder.Entity<UserSettings>(entity =>
+            modelBuilder.Entity<UserSetting>(entity =>
             {
-                entity.HasKey(e => e.UserId);
+                entity.Property(e => e.Id).HasColumnName("ID");
 
-                entity.Property(e => e.UserId)
-                    .HasColumnName("UserID")
-                    .ValueGeneratedNever();
+                entity.Property(e => e.SettingId).HasColumnName("SettingID");
+
+                entity.Property(e => e.UserId).HasColumnName("UserID");
+
+                entity.Property(e => e.Value).IsRequired();
 
                 entity.HasOne(d => d.User)
-                    .WithOne(p => p.UserSettings)
-                    .HasForeignKey<UserSettings>(d => d.UserId)
+                    .WithMany(p => p.UserSetting)
+                    .HasForeignKey(d => d.UserId)
                     .OnDelete(DeleteBehavior.ClientSetNull)
-                    .HasConstraintName("FK_UserSettings_Users");
+                    .HasConstraintName("FK_UserSetting_Users");
             });
 
             modelBuilder.Entity<Users>(entity =>
@@ -493,12 +718,66 @@ namespace Sabrina.Models
                 entity.Property(e => e.SpecialTime).HasColumnType("datetime");
             });
 
+            modelBuilder.Entity<WaifuJoiAlbum>(entity =>
+            {
+                entity.ToTable("WaifuJOI.Album");
+
+                entity.Property(e => e.Id).HasColumnName("ID");
+
+                entity.Property(e => e.ContentId)
+                    .IsRequired()
+                    .HasMaxLength(24)
+                    .IsFixedLength();
+            });
+
+            modelBuilder.Entity<WaifuJoiContentPost>(entity =>
+            {
+                entity.ToTable("WaifuJOI.ContentPost");
+
+                entity.Property(e => e.Id).HasColumnName("ID");
+
+                entity.Property(e => e.ContentId)
+                    .IsRequired()
+                    .HasMaxLength(24)
+                    .IsFixedLength();
+
+                entity.Property(e => e.Time).HasColumnType("datetime");
+            });
+
             modelBuilder.Entity<WheelChances>(entity =>
             {
                 entity.HasKey(e => e.Difficulty)
                     .HasName("PK_WheelChances_1");
 
                 entity.Property(e => e.Difficulty).ValueGeneratedNever();
+            });
+
+            modelBuilder.Entity<WheelOutcome>(entity =>
+            {
+                entity.ToTable("Wheel.Outcome");
+
+                entity.Property(e => e.Id).HasColumnName("ID");
+
+                entity.Property(e => e.Time).HasColumnType("datetime");
+
+                entity.Property(e => e.UserId).HasColumnName("UserID");
+            });
+
+            modelBuilder.Entity<WheelUserItem>(entity =>
+            {
+                entity.ToTable("Wheel.UserItem");
+
+                entity.Property(e => e.Id).HasColumnName("ID");
+
+                entity.Property(e => e.ItemId).HasColumnName("ItemID");
+
+                entity.Property(e => e.UserId).HasColumnName("UserID");
+
+                entity.HasOne(d => d.User)
+                    .WithMany(p => p.WheelUserItem)
+                    .HasForeignKey(d => d.UserId)
+                    .OnDelete(DeleteBehavior.ClientSetNull)
+                    .HasConstraintName("FK_Wheel.UserItem_Users");
             });
         }
     }

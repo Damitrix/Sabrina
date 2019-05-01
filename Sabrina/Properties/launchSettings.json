@@ -1,8 +1,7 @@
 {
   "profiles": {
     "Sabrina": {
-      "commandName": "Project",
-      "commandLineArgs": "\"C:\\Users\\Chris\\source\\repos\\Sabrina\\Sabrina\\bin\\Debug\\netcoreapp2.2\\Config.cfg\""
+      "commandName": "Project"
     }
   }
 }

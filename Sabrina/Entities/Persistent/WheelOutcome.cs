@@ -12,6 +12,8 @@ namespace Sabrina.Entities.Persistent
     using DSharpPlus.Entities;
     using Sabrina.Models;
     using System;
+    using System.Collections.Generic;
+    using System.Threading.Tasks;
 
     /// <summary>
     /// The wheel outcome.
@@ -27,9 +29,12 @@ namespace Sabrina.Entities.Persistent
         /// <param name="settings">
         /// The settings.
         /// </param>
-        protected WheelOutcome(WheelExtension.Outcome outcome, Models.UserSettings settings, DiscordContext context)
+        protected WheelOutcome(WheelExtension.Outcome outcome, Dictionary<UserSettingExtension.SettingID, UserSetting> settings, List<WheelUserItem> items, Dependencies dependencies)
         {
-            Outcome = WheelExtension.Outcome.NotSet;
+            Outcome = outcome;
+            _settings = settings;
+            _dependencies = dependencies;
+            _items = items;
         }
 
         /// <summary>
@@ -61,5 +66,11 @@ namespace Sabrina.Entities.Persistent
         /// Gets or sets the wheel locked time.
         /// </summary>
         public abstract TimeSpan WheelLockedTime { get; protected set; }
+
+        protected virtual Dependencies _dependencies { get; private set; }
+        protected virtual List<WheelUserItem> _items { get; private set; }
+        protected virtual Dictionary<UserSettingExtension.SettingID, UserSetting> _settings { get; private set; }
+
+        public abstract Task BuildAsync();
     }
 }

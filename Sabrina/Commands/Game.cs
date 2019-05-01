@@ -263,16 +263,15 @@ namespace Sabrina.Commands
 
         public List<Card> PlayerCards = new List<Card>();
 
+        private readonly CommandContext ctx;
         private readonly Users user;
 
         private DiscordContext _context;
 
-        private readonly CommandContext ctx;
-
         public BlackJackGame(int betEdges, CommandContext ctx, DiscordContext context)
         {
             _context = new DiscordContext();
-            this.user = context.Users.Find(Convert.ToInt64(Convert.ToInt64(ctx.Message.Author.Id)));
+            this.user = UserExtension.GetUser(ctx.Message.Author.Id).GetAwaiter().GetResult();
             this.ctx = ctx;
 
             // 2 Decks

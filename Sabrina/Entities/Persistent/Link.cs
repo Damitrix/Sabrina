@@ -1,35 +1,37 @@
-﻿using System.Collections.Generic;
+﻿using Configuration;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using System.Xml;
 using System.Xml.Serialization;
-using Configuration;
 
 namespace Sabrina.Entities.Persistent
 {
     public class Link
     {
+        public string CreatorName;
+
+        public string FileName;
+
+        public ContentType Type;
+
+        public string Url;
+
         public enum ContentType
         {
             Video,
             Picture
         }
 
-        public string CreatorName;
-        public string FileName;
-        public ContentType Type;
-        public string Url;
-
         public static async Task<List<Link>> LoadAll()
         {
             List<Link> allLinks = new List<Link>();
-            var CDir = $"{Directory.GetCurrentDirectory()}";
-            var MainFolder = Path.Combine(CDir, "BotFiles");
-            var WheelResponses = Path.Combine(MainFolder, "WheelResponses");
-            var SlaveReports = Path.Combine(MainFolder, "SlaveReports");
-            var UserData = Path.Combine(MainFolder, "UserData");
-            var WheelLinks = Path.Combine(WheelResponses, "Links");
+            var WheelLinks = Path.Combine(Config.BotFileFolders.WheelResponses, "Links");
 
+            if (!Directory.Exists(WheelLinks))
+            {
+                Directory.CreateDirectory(WheelLinks);
+            }
 
             foreach (var file in Directory.GetFiles(WheelLinks)) allLinks.Add(await Load(file));
 
@@ -54,7 +56,7 @@ namespace Sabrina.Entities.Persistent
                 fileId++;
             } while (File.Exists(fileLocation));
 
-            XmlSerializer xmlSerializer = XmlSerializer.FromTypes(new[] {typeof(Link)})[0];
+            XmlSerializer xmlSerializer = XmlSerializer.FromTypes(new[] { typeof(Link) })[0];
 
             using (FileStream stream = File.Create(fileLocation))
             {
@@ -68,8 +70,8 @@ namespace Sabrina.Entities.Persistent
             {
                 using (XmlReader xmlReader = XmlReader.Create(reader))
                 {
-                    XmlSerializer xmlSerializer = XmlSerializer.FromTypes(new[] {typeof(Link)})[0];
-                    Link link = (Link) xmlSerializer.Deserialize(xmlReader);
+                    XmlSerializer xmlSerializer = XmlSerializer.FromTypes(new[] { typeof(Link) })[0];
+                    Link link = (Link)xmlSerializer.Deserialize(xmlReader);
                     link.FileName = Path.GetFileNameWithoutExtension(fileLocation);
                     return link;
                 }

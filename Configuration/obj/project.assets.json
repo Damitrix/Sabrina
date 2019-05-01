@@ -178,7 +178,7 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\Chris\\.nuget\\packages\\": {},
+    "G:\\.nuget\\packages": {},
     "C:\\Program Files\\dotnet\\sdk\\NuGetFallbackFolder": {}
   },
   "project": {
@@ -187,7 +187,7 @@
       "projectUniqueName": "C:\\Users\\Chris\\source\\repos\\Sabrina\\Configuration\\Configuration.csproj",
       "projectName": "Configuration",
       "projectPath": "C:\\Users\\Chris\\source\\repos\\Sabrina\\Configuration\\Configuration.csproj",
-      "packagesPath": "C:\\Users\\Chris\\.nuget\\packages\\",
+      "packagesPath": "G:\\.nuget\\packages",
       "outputPath": "C:\\Users\\Chris\\source\\repos\\Sabrina\\Configuration\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
@@ -204,6 +204,12 @@
         "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
         "https://api.nuget.org/v3/index.json": {},
         "https://dotnet.myget.org/F/msbuild/api/v3/index.json": {},
+        "https://dotnetfeed.blob.core.windows.net/aspnet-aspnetcore-tooling/index.json": {},
+        "https://dotnetfeed.blob.core.windows.net/aspnet-aspnetcore/index.json": {},
+        "https://dotnetfeed.blob.core.windows.net/aspnet-entityframeworkcore/index.json": {},
+        "https://dotnetfeed.blob.core.windows.net/aspnet-extensions/index.json": {},
+        "https://dotnetfeed.blob.core.windows.net/dotnet-core/index.json": {},
+        "https://dotnetfeed.blob.core.windows.net/dotnet-windowsdesktop/index.json": {},
         "https://www.myget.org/F/dsharpplus-nightly/api/v3/index.json": {}
       },
       "frameworks": {

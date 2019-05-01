@@ -7,21 +7,29 @@
 // </summary>
 // --------------------------------------------------------------------------------------------------------------------
 
+using Sabrina.Bots;
+
 namespace Sabrina.Entities.WheelOutcomes
 {
     using DSharpPlus.Entities;
     using Sabrina.Entities.Persistent;
+    using Sabrina.Models;
     using System;
     using System.Collections.Generic;
     using System.IO;
     using System.Linq;
     using System.Net;
+    using System.Net.Http;
+    using System.Threading.Tasks;
+    using WheelOutcome = Persistent.WheelOutcome;
 
     /// <summary>
     /// The content outcome. Delivers your ultimate Outcome for the next few hours. With a pic ;D
     /// </summary>
     internal sealed class Content : WheelOutcome
     {
+        private WaifuJoi.Shared.Models.Content Image;
+
         /// <summary>
         /// Initializes a new instance of the <see cref="Content"/> class.
         /// </summary>
@@ -33,12 +41,48 @@ namespace Sabrina.Entities.WheelOutcomes
         /// </param>
         public Content(
             WheelExtension.Outcome outcome,
-            Models.UserSettings settings, Models.DiscordContext context)
-            : base(outcome, settings, context)
+            Dictionary<UserSettingExtension.SettingID, UserSetting> settings, List<WheelUserItem> items, Dependencies dependencies)
+            : base(outcome, settings, items, dependencies)
         {
+        }
+
+        /// <summary>
+        /// Gets or sets the chance to get this Outcome.
+        /// </summary>
+        public override int Chance { get; protected set; } = 80;
+
+        /// <summary>
+        /// Gets or sets the denial time.
+        /// </summary>
+        public override TimeSpan DenialTime { get; protected set; }
+
+        /// <summary>
+        /// Gets or sets the embed to display the user.
+        /// </summary>
+        public override DiscordEmbed Embed { get; protected set; }
+
+        /// <summary>
+        /// Gets or sets the outcome.
+        /// </summary>
+        public override WheelExtension.Outcome Outcome { get; protected set; }
+
+        /// <summary>
+        /// Gets or sets the text to display the user.
+        /// </summary>
+        public override string Text { get; protected set; }
+
+        /// <summary>
+        /// Gets or sets the wheel locked time.
+        /// </summary>
+        public override TimeSpan WheelLockedTime { get; protected set; }
+
+        public override async Task BuildAsync()
+        {
+            Outcome = Outcome == WheelExtension.Outcome.Task ? WheelExtension.Outcome.Edge : Outcome;
+
             var denialtext = "please don't break the Bot";
 
-            switch (outcome)
+            switch (Outcome)
             {
                 case WheelExtension.Outcome.Edge:
                     denialtext = "Then spin again";
@@ -71,22 +115,34 @@ namespace Sabrina.Entities.WheelOutcomes
                     }
                     else
                     {
-                        denialtext = "Then spin again";
+                        denialtext = "Then spin again. If you cum/ruin, use ``//came`` or ``//ruined``";
                         this.Outcome = WheelExtension.Outcome.Edge;
                     }
 
                     break;
             }
 
-            Link link;
+            Link link = null;
 
             if (this.Outcome == WheelExtension.Outcome.Edge)
             {
-                link = this.GetLinkFromRandomTumblr(this.GetPostCount());
+                Image = _dependencies.WaifuJoiBot.GetRandomPicture();
+
+                HttpClient client = new HttpClient();
+                var response = client.GetAsync(WaifuJOIBot.GetCreatorUrl(Image.CreatorId)).GetAwaiter().GetResult();
+                var creator = await MessagePack.MessagePackSerializer.DeserializeAsync<WaifuJoi.Shared.Models.Creator>(
+                    await response.Content.ReadAsStreamAsync());
+
+                link = new Link
+                {
+                    CreatorName = creator.Name,
+                    Url = WaifuJOIBot.GetImageUrl(Image.Id),
+                    Type = Link.ContentType.Picture
+                };
             }
             else
             {
-                List<Link> links = Link.LoadAll().Result;
+                List<Link> links = await Link.LoadAll();
 
                 var randomLinkNr = Helpers.RandomGenerator.RandomInt(0, links.Count);
 
@@ -94,7 +150,7 @@ namespace Sabrina.Entities.WheelOutcomes
                 {
                     link = new Link()
                     {
-                        CreatorName = "Oops.",
+                        CreatorName = "Salem forgot to update the Links again...",
                         FileName = "Salem forgot to update the Links again...",
                         Type = Link.ContentType.Picture,
                         Url = "https://Exception.com"
@@ -116,21 +172,21 @@ namespace Sabrina.Entities.WheelOutcomes
                     break;
 
                 case Link.ContentType.Picture:
-                    
-                    if (outcome == WheelExtension.Outcome.Edge)
+
+                    if (Outcome == WheelExtension.Outcome.Edge)
                     {
-                        fullSentence = $"Edge to {link.CreatorName}' Picture and take a 30 second break. {denialtext}";
-                        rerollIn = "Don't forget to take a break!";
+                        fullSentence = $"Edge to {link.CreatorName}'s Picture and take a 30 second break. {denialtext}";
+                        rerollIn = "Don't forget to take a break! If you cum/ruin, use ``//came`` or ``//ruined``";
                         this.WheelLockedTime = new TimeSpan(0, 0, 30);
                     }
                     else
                     {
-                        fullSentence = $"Edge to {link.CreatorName}' Picture and {denialtext}";
+                        fullSentence = $"Edge to {link.CreatorName}'s Picture and {denialtext}";
                     }
 
                     break;
             }
-            
+
             if (this.Outcome != WheelExtension.Outcome.Edge)
             {
                 rerollIn = "You are not allowed to re-roll for now.";
@@ -162,35 +218,19 @@ namespace Sabrina.Entities.WheelOutcomes
             this.Embed = builder.Build();
         }
 
-        /// <summary>
-        /// Gets or sets the chance to get this Outcome.
-        /// </summary>
-        public override int Chance { get; protected set; } = 80;
+        public void CleanUp(DiscordContext context)
+        {
+            if (Image == null)
+            {
+                return;
+            }
 
-        /// <summary>
-        /// Gets or sets the denial time.
-        /// </summary>
-        public override TimeSpan DenialTime { get; protected set; }
-
-        /// <summary>
-        /// Gets or sets the embed to display the user.
-        /// </summary>
-        public override DiscordEmbed Embed { get; protected set; }
-
-        /// <summary>
-        /// Gets or sets the outcome.
-        /// </summary>
-        public override WheelExtension.Outcome Outcome { get; protected set; }
-
-        /// <summary>
-        /// Gets or sets the text to display the user.
-        /// </summary>
-        public override string Text { get; protected set; }
-
-        /// <summary>
-        /// Gets or sets the wheel locked time.
-        /// </summary>
-        public override TimeSpan WheelLockedTime { get; protected set; }
+            context.WaifuJoiContentPost.Add(new WaifuJoiContentPost()
+            {
+                ContentId = Image.Id,
+                Time = DateTime.Now
+            });
+        }
 
         /// <summary>
         /// Get link from random tumblr.

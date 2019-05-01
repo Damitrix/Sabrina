@@ -13,7 +13,7 @@ namespace Sabrina.Models
         }
 
         public long Id { get; set; }
-        public double Score { get; set; }
+        public int Score { get; set; }
         public int Rating { get; set; }
         public int RatingCount { get; set; }
 
