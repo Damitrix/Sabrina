@@ -3,151 +3,186 @@ using DSharpPlus.Entities;
 using DSharpPlus.Exceptions;
 using Sabrina.Models;
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Timers;
+using Timer = System.Timers.Timer;
 
 namespace Sabrina.Bots
 {
-    internal class HelpBot
-    {
-        private readonly DiscordClient _client;
+	internal class HelpBot : IDisposable
+	{
+		private readonly DiscordClient _client;
 
-        private Timer _helpPostTimer;
+		private CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
+		private Timer _helpPostTimer;
+		private bool disposed = false;
 
-        public HelpBot(DiscordClient client)
-        {
-            _client = client;
+		public HelpBot(DiscordClient client)
+		{
+			_client = client;
 
-            System.Threading.Thread mainThread = new System.Threading.Thread(Run);
-        }
+			System.Threading.Thread mainThread = new System.Threading.Thread(Run);
+		}
 
-        private async Task OnTimerElapse()
-        {
-            var context = new DiscordContext();
-            var now = DateTime.Now;
+		public void Dispose()
+		{
+			Dispose(true);
+		}
 
-            foreach (var setting in context.SabrinaSettings)
-            {
-                if (setting.WheelChannel != null && setting.LastWheelHelpPost == null || setting.LastWheelHelpPost < now - TimeSpan.FromDays(1))
-                {
-                    DiscordChannel channel = null;
+		protected virtual void Dispose(bool disposing)
+		{
+			if (disposed)
+			{
+				return;
+			}
 
-                    try
-                    {
-                        channel = await _client.GetChannelAsync(Convert.ToUInt64(setting.WheelChannel.Value));
-                    }
-                    catch (UnauthorizedException)
-                    {
-                        continue;
-                    }
+			if (disposing)
+			{
+				_cancellationTokenSource.Cancel();
+				_cancellationTokenSource.Dispose();
+				_helpPostTimer?.Stop();
+				_helpPostTimer?.Dispose();
+			}
 
-                    DiscordEmbedBuilder builder = new DiscordEmbedBuilder
-                    {
-                        Author = new DiscordEmbedBuilder.EmbedAuthor
-                        {
-                            IconUrl =
-                        "https://cdn.discordapp.com/avatars/450771319479599114/d7dd3e2ec296542f170e84c264de78ce.png",
-                            Name = "Sabrina"
-                        },
-                        Color = DiscordColor.VeryDarkGray,
-                        Description =
-                            "Hey Guys and Gals, i'm Sabrina. Since Mistress can't tend to every single one of your pathetic little needs, i'm here to help her out." +
-                            Environment.NewLine +
-                            "I've got a bunch of neat little Commands to ~~torture~~ help you. You'll probably only ever need 3 though." +
-                            Environment.NewLine + Environment.NewLine +
-                            "``//orgasmwheel``" + Environment.NewLine +
-                            "Use this, to spin the \"Wheel of Misfortune\". It contains fun little Tasks and \"Rewards\", that Mistress Aki herself has created. " +
-                            "(That means, if you're unhappy with your outcome, you know where to complain.... if you dare to.)" +
-                            Environment.NewLine + Environment.NewLine +
-                            "``//denialtime``" + Environment.NewLine +
-                            "This will show you, when exactly " + Environment.NewLine +
-                            "    a) You are able to spin again" + Environment.NewLine +
-                            "    b) You are not denied anymore" + Environment.NewLine +
-                            "Which means, that you may spin the wheel while denied. But that also means, that you can also not be denied, while being excluded from the wheel." +
-                            Environment.NewLine + Environment.NewLine +
-                            "``//settings setup``" +
-                            Environment.NewLine +
-                            "When you issue this command, i will assist you with setting up the difficulty of the wheel and other stuffs. Just wait for my dm.",
-                        Title = "Introduction",
-                        Footer = new DiscordEmbedBuilder.EmbedFooter()
-                        {
-                            IconUrl = "https://cdn.discordapp.com/avatars/249216025931939841/a_94cf2ac609424257706d6a611f5dd7aa.gif",
-                            Text = "If something doesn't seem right, please complain to Salem :)"
-                        }
-                    };
+			disposed = true;
+		}
 
-                    await channel.SendMessageAsync(embed: builder.Build());
+		private async Task OnTimerElapse(CancellationToken token = default)
+		{
+			using var context = new DiscordContext();
+			var now = DateTime.Now;
 
-                    setting.LastWheelHelpPost = DateTime.Now;
-                }
+			foreach (var setting in context.SabrinaSettings)
+			{
+				if (token.IsCancellationRequested)
+				{
+					break;
+				}
 
-                if (setting.FeetChannel != null && setting.LastDeepLearningPost == null || setting.LastDeepLearningPost < now - TimeSpan.FromDays(1))
-                {
-                    var channel = await _client.GetChannelAsync(Convert.ToUInt64(setting.FeetChannel.Value));
+				if (setting.WheelChannel != null && setting.LastWheelHelpPost == null || setting.LastWheelHelpPost < now - TimeSpan.FromDays(1))
+				{
+					DiscordChannel channel = null;
 
-                    DiscordEmbedBuilder builder = new DiscordEmbedBuilder
-                    {
-                        Author = new DiscordEmbedBuilder.EmbedAuthor
-                        {
-                            IconUrl =
-                        "https://cdn.discordapp.com/avatars/450771319479599114/d7dd3e2ec296542f170e84c264de78ce.png",
-                            Name = "Sabrina"
-                        },
-                        Color = DiscordColor.VeryDarkGray,
-                        Description =
-                            "Heyo, it's me! Your beloved Sabrina!" + Environment.NewLine +
-                            "For the slow ones of you: I'm posting a neat little Picture here every now and then." + Environment.NewLine + Environment.NewLine +
-                            "Since i can't read minds, i'd love for you, to upvote the pictures you like." + Environment.NewLine +
-                            "Why?" + Environment.NewLine +
-                            "Well, smartypants, if i feel confident enough about your preferences, i'll start posting pictures specifically chosen for you! <3"
-                            + Environment.NewLine + Environment.NewLine
-                            //+ "You can also get your fix a little earlier, by using the command ``//boostDL``"
-                            ,
-                        Title = "Introduction",
-                        Footer = new DiscordEmbedBuilder.EmbedFooter()
-                        {
-                            IconUrl = "https://cdn.discordapp.com/avatars/249216025931939841/a_94cf2ac609424257706d6a611f5dd7aa.gif",
-                            Text = "If something doesn't seem right, please complain to Salem :)"
-                        }
-                    };
+					try
+					{
+						channel = await _client.GetChannelAsync(Convert.ToUInt64(setting.WheelChannel.Value));
+					}
+					catch (UnauthorizedException)
+					{
+						continue;
+					}
 
-                    await channel.SendMessageAsync(embed: builder.Build());
+					DiscordEmbedBuilder builder = new DiscordEmbedBuilder
+					{
+						Author = new DiscordEmbedBuilder.EmbedAuthor
+						{
+							IconUrl =
+						"https://cdn.discordapp.com/avatars/450771319479599114/d7dd3e2ec296542f170e84c264de78ce.png",
+							Name = "Sabrina"
+						},
+						Color = DiscordColor.VeryDarkGray,
+						Description =
+							"Hey Guys and Gals, i'm Sabrina. Since Mistress can't tend to every single one of your pathetic little needs, i'm here to help her out." +
+							Environment.NewLine +
+							"I've got a bunch of neat little Commands to ~~torture~~ help you. You'll probably only ever need 3 though." +
+							Environment.NewLine + Environment.NewLine +
+							"``//orgasmwheel``" + Environment.NewLine +
+							"Use this, to spin the \"Wheel of Misfortune\". It contains fun little Tasks and \"Rewards\", that Mistress Aki herself has created. " +
+							"(That means, if you're unhappy with your outcome, you know where to complain.... if you dare to.)" +
+							Environment.NewLine + Environment.NewLine +
+							"``//denialtime``" + Environment.NewLine +
+							"This will show you, when exactly " + Environment.NewLine +
+							"    a) You are able to spin again" + Environment.NewLine +
+							"    b) You are not denied anymore" + Environment.NewLine +
+							"Which means, that you may spin the wheel while denied. But that also means, that you can also not be denied, while being excluded from the wheel." +
+							Environment.NewLine + Environment.NewLine +
+							"``//settings setup``" +
+							Environment.NewLine +
+							"When you issue this command, i will assist you with setting up the difficulty of the wheel and other stuffs. Just wait for my dm.",
+						Title = "Introduction",
+						Footer = new DiscordEmbedBuilder.EmbedFooter()
+						{
+							IconUrl = "https://cdn.discordapp.com/avatars/249216025931939841/a_94cf2ac609424257706d6a611f5dd7aa.gif",
+							Text = "If something doesn't seem right, please complain to Salem :)"
+						}
+					};
 
-                    setting.LastDeepLearningPost = DateTime.Now;
-                }
-            }
+					await channel.SendMessageAsync(embed: builder.Build());
 
-            await context.SaveChangesAsync();
-        }
+					setting.LastWheelHelpPost = DateTime.Now;
+				}
 
-        private void Run()
-        {
-            //SendPatreonUpdateOnce().GetAwaiter().GetResult();
+				if (setting.FeetChannel != null && setting.LastDeepLearningPost == null || setting.LastDeepLearningPost < now - TimeSpan.FromDays(1))
+				{
+					var channel = await _client.GetChannelAsync(Convert.ToUInt64(setting.FeetChannel.Value));
 
-            _helpPostTimer = new Timer(TimeSpan.FromMinutes(30).TotalMilliseconds)
-            {
-                AutoReset = true
-            };
-            _helpPostTimer.Elapsed += async (object sender, ElapsedEventArgs e) => await OnTimerElapse();
-            _helpPostTimer.Start();
+					DiscordEmbedBuilder builder = new DiscordEmbedBuilder
+					{
+						Author = new DiscordEmbedBuilder.EmbedAuthor
+						{
+							IconUrl =
+						"https://cdn.discordapp.com/avatars/450771319479599114/d7dd3e2ec296542f170e84c264de78ce.png",
+							Name = "Sabrina"
+						},
+						Color = DiscordColor.VeryDarkGray,
+						Description =
+							"Heyo, it's me! Your beloved Sabrina!" + Environment.NewLine +
+							"For the slow ones of you: I'm posting a neat little Picture here every now and then." + Environment.NewLine + Environment.NewLine +
+							"Since i can't read minds, i'd love for you, to upvote the pictures you like." + Environment.NewLine +
+							"Why?" + Environment.NewLine +
+							"Well, smartypants, if i feel confident enough about your preferences, i'll start posting pictures specifically chosen for you! <3"
+							+ Environment.NewLine + Environment.NewLine
+							//+ "You can also get your fix a little earlier, by using the command ``//boostDL``"
+							,
+						Title = "Introduction",
+						Footer = new DiscordEmbedBuilder.EmbedFooter()
+						{
+							IconUrl = "https://cdn.discordapp.com/avatars/249216025931939841/a_94cf2ac609424257706d6a611f5dd7aa.gif",
+							Text = "If something doesn't seem right, please complain to Salem :)"
+						}
+					};
 
-            Task.Run(async () => await OnTimerElapse());
-        }
+					await channel.SendMessageAsync(embed: builder.Build());
 
-        private async Task SendPatreonUpdateOnce()
-        {
-            var channel = _client.GetChannelAsync(448781033278799882);
+					setting.LastDeepLearningPost = DateTime.Now;
+				}
+			}
 
-            DiscordEmbedBuilder builder = new DiscordEmbedBuilder()
-            {
-                Author = new DiscordEmbedBuilder.EmbedAuthor()
-                {
-                    IconUrl = "https://cdn.discordapp.com/avatars/335437183127257089/a_1a4467f73d1b56fcbf996b4bb9d8b663.gif?size=2048",
-                    Name = "Mistress Aki / YourAnimeAddiction",
-                    Url = ""
-                },
-                Color = DiscordColor.Gold,
-                Description = @"Closing Patreon
+			await context.SaveChangesAsync(token);
+		}
+
+		private void Run()
+		{
+			//SendPatreonUpdateOnce().GetAwaiter().GetResult();
+
+			_helpPostTimer = new Timer(TimeSpan.FromMinutes(30).TotalMilliseconds)
+			{
+				AutoReset = true
+			};
+			_helpPostTimer.Elapsed += async (object sender, ElapsedEventArgs e) => await OnTimerElapse(_cancellationTokenSource.Token);
+			_helpPostTimer.Start();
+
+			Task.Run(async () => await OnTimerElapse(_cancellationTokenSource.Token), _cancellationTokenSource.Token);
+		}
+
+#pragma warning disable IDE0051 // Remove unused private members
+
+		private async Task SendPatreonUpdateOnce()
+#pragma warning restore IDE0051 // Remove unused private members
+		{
+			var channel = _client.GetChannelAsync(448781033278799882);
+
+			DiscordEmbedBuilder builder = new DiscordEmbedBuilder()
+			{
+				Author = new DiscordEmbedBuilder.EmbedAuthor()
+				{
+					IconUrl = "https://cdn.discordapp.com/avatars/335437183127257089/a_1a4467f73d1b56fcbf996b4bb9d8b663.gif?size=2048",
+					Name = "Mistress Aki / YourAnimeAddiction",
+					Url = ""
+				},
+				Color = DiscordColor.Gold,
+				Description = @"Closing Patreon
 
                 I'm sure many of you are aware of the Patreon debacle going on right now. I'm not about to get political on a hentai community Patreon page,
                 but suffice it to say that I do not support censorship in any form, especially targeted censorship, and will be unpublishing this page on JANUARY 1st 2019.I truly want to thank everyone who has been a patron and supported me in ways I could never have imagined. Thank you so much<3
@@ -159,14 +194,14 @@ namespace Sabrina.Bots
                 -I will return to Discord soon (currently lost my 2FA phone and can't login to Discord >.<).
 
                 Thanks again everyone and I hope you have a wonderful New Year! <3",
-                Footer = new DiscordEmbedBuilder.EmbedFooter()
-                {
-                    IconUrl = @"https://c5.patreon.com/external/logo/downloads_logomark_color_on_white@2x.png",
-                    Text = "Patreon Post"
-                }
-            };
+				Footer = new DiscordEmbedBuilder.EmbedFooter()
+				{
+					IconUrl = @"https://c5.patreon.com/external/logo/downloads_logomark_color_on_white@2x.png",
+					Text = "Patreon Post"
+				}
+			};
 
-            await _client.SendMessageAsync(await channel, embed: builder.Build());
-        }
-    }
+			await _client.SendMessageAsync(await channel, embed: builder.Build());
+		}
+	}
 }

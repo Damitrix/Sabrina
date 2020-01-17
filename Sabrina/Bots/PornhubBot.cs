@@ -4,282 +4,317 @@ using System.Net.Http;
 
 namespace Sabrina.Pornhub
 {
-    using DSharpPlus;
-    using DSharpPlus.Entities;
-    using HtmlAgilityPack;
-    using System;
-    using System.Collections.Generic;
-    using System.Linq;
-    using System.Net.Http.Headers;
-    using System.Threading;
-    using System.Threading.Tasks;
+	using DSharpPlus;
+	using DSharpPlus.Entities;
+	using HtmlAgilityPack;
+	using System;
+	using System.Collections.Generic;
+	using System.Linq;
+	using System.Net.Http.Headers;
+	using System.Threading;
+	using System.Threading.Tasks;
 
-    public class PornhubBot : IDisposable
-    {
-        public static bool Exit = false;
+	public class PornhubBot : IDisposable
+	{
+		public List<Video> IndexedVideos = new List<Video>();
 
-        public List<Video> IndexedVideos = new List<Video>();
+		private static string _logoUrl = @"https://di.phncdn.com/www-static/images/pornhub_logo_straight.png";
+		private readonly CancellationToken _cancellationToken;
+		private readonly DiscordClient _client;
 
-        private readonly DiscordClient _client;
+		private readonly HttpClient _httpClient;
+		private readonly Thread _mainThread;
 
-        private HttpClient _httpClient;
-        private Thread _mainThread;
+		public PornhubBot(DiscordClient client, CancellationToken token)
+		{
+			_cancellationToken = token;
+			_client = client;
 
-        public PornhubBot(DiscordClient client)
-        {
-            this._client = client;
+			_httpClient = new HttpClient();
 
-            _httpClient = new HttpClient();
+			_httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("text/html"));
+			_httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("*/*", 0.8));
 
-            _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("text/html"));
-            _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("*/*", 0.8));
+			_httpClient.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("Chrome", "71.0.3578.98"));
 
-            _httpClient.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("Chrome", "71.0.3578.98"));
+			_mainThread = new Thread(async () =>
+			{
+				try
+				{
+					await MainThread();
+				}
+				catch (TaskCanceledException)
+				{ }
+			});
+			_mainThread.Start();
+		}
 
-            _mainThread = new Thread(async () => await MainThread());
-            _mainThread.Start();
-        }
+		public void Dispose()
+		{
+			this.Dispose(true);
 
-        public void Dispose()
-        {
-            Dispose(true);
-            GC.SuppressFinalize(this);
-        }
+			GC.SuppressFinalize(this);
+		}
 
-        protected virtual void Dispose(bool disposing)
-        {
-            _mainThread.Abort();
-        }
+		protected virtual void Dispose(bool disposing)
+		{
+			try
+			{
+				_httpClient.Dispose();
+				_mainThread.Interrupt();
+				_mainThread.Abort();
+			}
+			catch (TaskCanceledException)
+			{ }
+			catch (PlatformNotSupportedException)
+			{ }
+		}
 
-        private async Task<Video> GetNewestPornhubVideo(string userName)
-        {
-            Video newestVideo = null;
+		private async Task<IEnumerable<string>> GetNewestPornhubVideoIds(string userName, CancellationToken cancellationToken)
+		{
+			List<string> newestVideos = new List<string>();
 
-            try
-            {
-                string url = $"https://www.pornhub.com/users/{userName}/videos";
-                var response = await _httpClient.GetAsync(url).ConfigureAwait(false);
+			try
+			{
+				string url = $"https://www.pornhub.com/users/{userName}/videos";
+				var response = await _httpClient.GetAsync(url, cancellationToken);
 
-                if (response.StatusCode != HttpStatusCode.OK)
-                {
-                    return null;
-                }
+				if (response.StatusCode != HttpStatusCode.OK)
+				{
+					return newestVideos;
+				}
 
-                var data = await response.Content.ReadAsStreamAsync();
-                var doc = new HtmlDocument();
-                doc.Load(data);
+				var data = await response.Content.ReadAsStreamAsync();
+				var doc = new HtmlDocument();
+				doc.Load(data);
 
-                var node = doc.DocumentNode.SelectSingleNode(
-                    "//*[@class=\"videos row-3-thumbs\"]/li[1]/div/div[1]/div/a");
-                if (node == null)
-                {
-                    url = $"https://www.pornhub.com/model/{userName}";
-                    response = await _httpClient.GetAsync(url).ConfigureAwait(false);
+				var tableNode = doc.DocumentNode.Descendants("ul").FirstOrDefault(n => n.HasClass("videos") && n.HasClass("row-3-thumbs") && n.HasClass("gap-row-15"));
 
-                    if (response.StatusCode != HttpStatusCode.OK)
-                    {
-                        return null;
-                    }
+				if (tableNode == null)
+				{
+					tableNode = doc.DocumentNode.Descendants("ul").FirstOrDefault(n => n.HasClass("videos") && n.HasClass("row-5-thumbs") && n.HasClass("pornstarsVideos") && n.HasClass("search-video-thumbs"));
+				}
 
-                    data = await response.Content.ReadAsStreamAsync();
-                    doc = new HtmlDocument();
-                    doc.Load(data);
+				var allLinkNodes = tableNode.Descendants("a");
 
-                    node = doc.DocumentNode.SelectSingleNode(
-                        "//*[@class=\"videos row-5-thumbs search-video-thumbs pornstarsVideos\"]/li[1]/div[1]/div[1]/div[2]/a");
-                    if (node == null)
-                    {
-                        return null;
-                    }
-                }
+				foreach (var linkNode in allLinkNodes)
+				{
+					var href = linkNode.GetAttributeValue("href", string.Empty);
+					if (!href.Contains("viewkey"))
+					{
+						continue;
+					}
 
-                string id = node.GetAttributeValue("href", string.Empty).Split(new string[] { "?viewkey=" }, StringSplitOptions.RemoveEmptyEntries)[1];
-                newestVideo = await Video.FromPornhubId(id);
+					string id = href.Split(new string[] { "?viewkey=" }, StringSplitOptions.RemoveEmptyEntries)[1];
 
-                if (newestVideo == null)
-                {
-                    return null;
-                }
+					if (newestVideos.Any(v => v == id))
+					{
+						continue;
+					}
 
-                if (newestVideo.Creator == null)
-                {
-                    newestVideo.Creator = userName;
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-                return null;
-            }
+					newestVideos.Add(id);
+				}
+			}
+			catch (Exception ex)
+			{
+				Console.WriteLine(ex.Message);
+				return newestVideos;
+			}
 
-            return newestVideo;
-        }
+			return newestVideos;
+		}
 
-        private async Task MainThread()
-        {
-            while (!Exit)
-            {
-                var context = new DiscordContext();
-                foreach (var platform in context.Joiplatform)
-                {
-                    foreach (var link in context.CreatorPlatformLink)
-                    {
-                        Video newestVideo = null;
+		private async Task MainThread()
+		{
+			using var context = new DiscordContext();
 
-                        switch (platform.BaseUrl)
-                        {
-                            case "https://www.pornhub.com":
-                                newestVideo = await GetNewestPornhubVideo(link.Identification);
-                                break;
-                        }
+			while (!_cancellationToken.IsCancellationRequested)
+			{
+				foreach (var platform in context.Joiplatform.ToArray())
+				{
+					foreach (var link in context.CreatorPlatformLink.ToArray())
+					{
+						IEnumerable<string> newestVideos = null;
 
-                        if (newestVideo == null || context.IndexedVideo.Any(iv => iv.Identification == newestVideo.ID))
-                        {
-                            await Task.Delay(6000);
-                            continue;
-                        }
+						switch (platform.BaseUrl)
+						{
+							case "https://www.pornhub.com":
+								newestVideos = await GetNewestPornhubVideoIds(link.Identification, _cancellationToken);
+								break;
+						}
 
-                        var creator = await context.Creator.FindAsync(link.CreatorId);
-                        var discordUser = _client.GetUserAsync(Convert.ToUInt64(creator.DiscordUserId.Value));
+						foreach (var newestVideo in newestVideos)
+						{
+							if (newestVideo == null || context.IndexedVideo.Any(iv => iv.Identification == newestVideo))
+							{
+								continue;
+							}
 
-                        IndexedVideo indexedVideo = new IndexedVideo()
-                        {
-                            CreationDate = DateTime.Now,
-                            CreatorId = creator.Id,
-                            Identification = newestVideo.ID,
-                            Link = newestVideo.Url,
-                            PlatformId = platform.Id
-                        };
+							await Task.Delay(2000, _cancellationToken);
+							var fullVideo = await Video.FromPornhubId(newestVideo);
 
-                        await context.IndexedVideo.AddAsync(indexedVideo);
+							var creator = await context.Creator.FindAsync(keyValues: new object[] { link.CreatorId }, cancellationToken: _cancellationToken);
+							DiscordUser discordUser = null;
 
-                        DiscordEmbedBuilder builder = new DiscordEmbedBuilder()
-                        {
-                            Color = DiscordColor.Gold,
-                            Title = $"{newestVideo.Creator} has uploaded a new video!",
-                            Url = newestVideo.Url,
-                            ThumbnailUrl = newestVideo.ImageUrl
-                        };
+							if (creator.DiscordUserId != null)
+							{
+								try
+								{
+									discordUser = await _client.GetUserAsync(Convert.ToUInt64(creator.DiscordUserId.Value));
+								}
+								catch (Exception)
+								{ }
+							}
 
-                        builder.AddField("Title", newestVideo.Title);
-                        if (creator.DiscordUserId != null)
-                        {
-                            builder.AddField("Creator", (await discordUser).Mention);
-                        }
+							IndexedVideo indexedVideo = new IndexedVideo()
+							{
+								CreationDate = DateTime.Now,
+								CreatorId = creator.Id,
+								Identification = fullVideo.ID,
+								Link = fullVideo.Url,
+								PlatformId = platform.Id
+							};
 
-                        var embed = builder.Build();
+							DiscordEmbedBuilder builder = new DiscordEmbedBuilder()
+							{
+								Color = DiscordColor.Gold,
+								Title = $"{fullVideo.Creator} has uploaded a new video!",
+								Url = fullVideo.Url,
+								ImageUrl = fullVideo.ImageUrl,
+								ThumbnailUrl = _logoUrl
+							};
 
-                        await context.SaveChangesAsync();
+							builder.AddField("Title", fullVideo.Title);
+							if (creator.DiscordUserId != null && discordUser != null)
+							{
+								builder.AddField("Creator", discordUser.Mention);
+							}
 
-                        foreach (var updateChannelId in context.SabrinaSettings.Where(ss => ss.ContentChannel != null).Select(ss => ss.ContentChannel))
-                        {
-                            try
-                            {
-                                var updateChannel = await _client.GetChannelAsync(Convert.ToUInt64(updateChannelId));
+							builder.AddField("Link", fullVideo.Url);
 
-                                await _client.SendMessageAsync(updateChannel, embed: embed);
-                            }
-                            catch (DSharpPlus.Exceptions.UnauthorizedException)
-                            {
-                                // No other way, to handle it
-                            }
-                        }
-                    }
-                }
-                await Task.Delay(120000);
-            }
-        }
-    }
+							var embed = builder.Build();
 
-    public class Video
-    {
-        public DateTime CreationDate;
+							foreach (var updateChannelId in context.SabrinaSettings.Where(ss => ss.ContentChannel != null).Select(ss => ss.ContentChannel))
+							{
+								if (_client.Guilds.Any(g => g.Value.Channels.Any(c => c.Key == Convert.ToUInt64(updateChannelId))))
+								{
+									var updateChannel = await _client.GetChannelAsync(Convert.ToUInt64(updateChannelId));
+									await _client.SendMessageAsync(updateChannel, embed: embed);
+								}
+							}
 
-        public string Creator;
+							await context.IndexedVideo.AddAsync(indexedVideo, _cancellationToken);
+						}
 
-        public string ID;
-        public string ImageUrl;
+						await context.SaveChangesAsync(_cancellationToken);
+						await Task.Delay(3000, _cancellationToken);
+					}
+					await Task.Delay(3000, _cancellationToken);
+				}
 
-        public string Title;
+				await Task.Delay(120000, _cancellationToken);
+			}
+		}
+	}
 
-        public string Url;
+	public class Video
+	{
+		public DateTime CreationDate;
 
-        public static async Task<Video> FromPornhubId(string id)
-        {
-            var client = new HttpClient();
+		public string Creator;
 
-            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("text/html"));
-            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/xhtml+xml"));
-            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/xml"));
-            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("image/webp"));
-            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("image/apng"));
-            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("*/*", 0.8));
+		public string ID;
+		public string ImageUrl;
 
-            client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("Chrome", "72.0.3626.119"));
+		public string Title;
 
-            client.DefaultRequestHeaders.Connection.Add("close");
+		public string Url;
 
-            WebResponse response = null;
+		private static readonly string[] MediaTypeHeaders = new[] { "text/html", "application/xhtml+xml", "application/xml", "image/webp", "image/apng" };
 
-            try
-            {
-                var request = HttpWebRequest.CreateHttp($"https://www.pornhub.com/view_video.php?viewkey={id}");
-                request.Accept =
-                    "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8";
-                request.UserAgent = "Chrome/72.0.3626.119";
-                request.ProtocolVersion = new Version(1, 0);
-                response = await request.GetResponseAsync();
-            }
-            catch (Exception ex)
-            {
-                await Console.Error.WriteLineAsync($"Couldn't get Pornhub Video ({id})").ConfigureAwait(false);
-                await Console.Error.WriteLineAsync(ex.Message);
-                return null;
-            }
+		public static async Task<Video> FromPornhubId(string id)
+		{
+			using var client = new HttpClient();
 
-            var header = response.Headers;
-            var length = response.ContentLength;
+			foreach (var mediaTypeHeader in MediaTypeHeaders)
+			{
+				client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(mediaTypeHeader));
+			}
+			client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("*/*", 0.8));
 
-            var data = response.GetResponseStream();
-            var doc = new HtmlDocument();
+			client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("Chrome", "72.0.3626.119"));
 
-            if (data == null)
-            {
-                return null;
-            }
+			client.DefaultRequestHeaders.Connection.Add("close");
 
-            doc.Load(data);
+			WebResponse response = null;
 
-            var metaNodes = doc.DocumentNode.SelectNodes("/html/head/meta");
+			try
+			{
+				var request = HttpWebRequest.CreateHttp($"https://www.pornhub.com/view_video.php?viewkey={id}");
+				request.Accept =
+					"text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8";
+				request.UserAgent = "Chrome/72.0.3626.119";
+				request.ProtocolVersion = new Version(1, 0);
+				response = await request.GetResponseAsync();
+			}
+			catch (Exception ex)
+			{
+				await Console.Error.WriteLineAsync($"Couldn't get Pornhub Video ({id})").ConfigureAwait(false);
+				await Console.Error.WriteLineAsync(ex.Message);
+				return null;
+			}
 
-            if (metaNodes == null || !metaNodes.Any())
-            {
-                //Refresh Cookie or something, dunno
-                return null;
-            }
+			var header = response.Headers;
+			var length = response.ContentLength;
 
-            var titleNode = doc.DocumentNode.SelectNodes("/html/head/meta").Where(e => e.Attributes["property"]?.Value == "og:title").FirstOrDefault();
-            var imageNode = doc.DocumentNode.SelectNodes("/html/head/meta").Where(e => e.Attributes["property"]?.Value == "og:image").FirstOrDefault();
-            //var userName = doc.DocumentNode.Descendants("div")
-            //    .Where(d => d.GetAttributeValue("class", "") == "video-detailed-info").First().Descendants("a").First()
-            //    .InnerText;
+			var data = response.GetResponseStream();
+			var doc = new HtmlDocument();
 
-            if (titleNode == null || imageNode == null)
-            {
-                return null;
-            }
+			if (data == null)
+			{
+				return null;
+			}
 
-            var video = new Video
-            {
-                Url = $"https://www.pornhub.com/view_video.php?viewkey={id}",
-                Creator = null,
-                CreationDate = DateTime.Now,
-                ImageUrl = imageNode.GetAttributeValue("content", string.Empty),
-                Title = titleNode.GetAttributeValue("content", string.Empty),
-                ID = id
-            };
+			doc.Load(data);
 
-            return video;
-        }
-    }
+			const string meta = "/html/head/meta";
+
+			var metaNodes = doc.DocumentNode.SelectNodes(meta);
+
+			if (metaNodes == null || !metaNodes.Any())
+			{
+				//Refresh Cookie or something, dunno
+				return null;
+			}
+
+			var titleNode = doc.DocumentNode.SelectNodes(meta).Where(e => e.Attributes["property"]?.Value == "og:title").FirstOrDefault();
+			var imageNode = doc.DocumentNode.SelectNodes(meta).Where(e => e.Attributes["property"]?.Value == "og:image").FirstOrDefault();
+			var videoInfoNode = doc.DocumentNode.Descendants("div").Where(d => d.HasClass("video-detailed-info")).FirstOrDefault();
+			HtmlNode usernameNode = null;
+			if (videoInfoNode != null)
+			{
+				usernameNode = videoInfoNode.Descendants("a").FirstOrDefault();
+			}
+			//var userName = doc.DocumentNode.Descendants("div")
+			//    .Where(d => d.GetAttributeValue("class", "") == "video-detailed-info").First().Descendants("a").First()
+			//    .InnerText;
+
+			if (titleNode == null || imageNode == null || usernameNode == null)
+			{
+				return null;
+			}
+
+			var video = new Video
+			{
+				Url = $"https://www.pornhub.com/view_video.php?viewkey={id}",
+				Creator = usernameNode.InnerText,
+				CreationDate = DateTime.Now,
+				ImageUrl = imageNode.GetAttributeValue("content", string.Empty),
+				Title = titleNode.GetAttributeValue("content", string.Empty),
+				ID = id
+			};
+
+			return video;
+		}
+	}
 }

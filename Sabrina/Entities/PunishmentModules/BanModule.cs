@@ -3,47 +3,45 @@ using Sabrina.Models;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using static Sabrina.Models.UserSettingExtension;
+using static Sabrina.Models.UserSetting;
 
 namespace Sabrina.Entities.PunishmentModules
 {
     internal class BanModule : PunishmentModule
     {
-        public BanModule(Dictionary<UserSettingExtension.SettingID, UserSetting> settings, List<WheelUserItem> items) : base(settings, items)
+        public BanModule(Dictionary<UserSetting.SettingID, UserSetting> settings, List<WheelUserItem> items) : base(settings, items)
         {
         }
 
         public override int Chance { get; internal set; } = 10;
         public override TimeSpan DenialTime { get; internal set; }
         public override DiscordEmbed Embed { get; internal set; }
-
-        public override IEnumerable<SettingID> RequiredSettings { get; internal set; }
         public override TimeSpan WheelLockTime { get; internal set; }
 
         public override Task Generate()
         {
             BanType previousBan = BanType.None;
-            if (_settings.ContainsKey(SettingID.BanType))
+            if (Settings.ContainsKey(SettingID.BanType))
             {
-                previousBan = _settings[SettingID.BanType].GetValue<BanType>();
+                previousBan = Settings[SettingID.BanType].GetValue<BanType>();
             }
 
             DateTime previousBanEnd = DateTime.Now;
-            if (_settings.ContainsKey(SettingID.BanEnd))
+            if (Settings.ContainsKey(SettingID.BanEnd))
             {
-                previousBanEnd = _settings[SettingID.BanEnd].GetValue<DateTime>();
+                previousBanEnd = Settings[SettingID.BanEnd].GetValue<DateTime>();
             }
 
-            WheelExtension.WheelDifficultyPreference difficulty = WheelExtension.WheelDifficultyPreference.Default;
-            if (_settings.ContainsKey(SettingID.WheelDifficulty))
+            UserSetting.WheelDifficultyPreference difficulty = UserSetting.WheelDifficultyPreference.Default;
+            if (Settings.ContainsKey(SettingID.WheelDifficulty))
             {
-                difficulty = _settings[SettingID.WheelDifficulty].GetValue<WheelExtension.WheelDifficultyPreference>();
+                difficulty = Settings[SettingID.WheelDifficulty].GetValue<UserSetting.WheelDifficultyPreference>();
             }
 
             List<BanType> possibleBans = new List<BanType>()
             { BanType.NoHentai, BanType.OnlyHentai, BanType.NoRegularPorn, BanType.NoRegularPorn};
 
-            if (_settings.TryGetValue(SettingID.TrapLevel, out UserSetting sissySetting))
+            if (Settings.TryGetValue(SettingID.TrapLevel, out UserSetting sissySetting))
             {
                 if (sissySetting.GetValue<SissyLevel>() >= SissyLevel.Normal)
                 {

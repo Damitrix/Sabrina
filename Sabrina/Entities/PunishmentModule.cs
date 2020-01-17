@@ -7,53 +7,55 @@ using System.Threading.Tasks;
 
 namespace Sabrina.Entities
 {
-    internal abstract class PunishmentModule
-    {
-        public PunishmentModule(Dictionary<UserSettingExtension.SettingID, UserSetting> settings, List<WheelUserItem> items)
-        {
-            _settings = settings;
-            _items = items;
-        }
+	internal abstract class PunishmentModule
+	{
+		public PunishmentModule(Dictionary<UserSetting.SettingID, UserSetting> settings, List<WheelUserItem> items)
+		{
+			Settings = settings;
+			Items = items;
+		}
 
-        public abstract int Chance { get; internal set; }
+		public abstract int Chance { get; internal set; }
 
-        public abstract TimeSpan DenialTime { get; internal set; }
+		public abstract TimeSpan DenialTime { get; internal set; }
 
-        public abstract DiscordEmbed Embed { get; internal set; }
+		public abstract DiscordEmbed Embed { get; internal set; }
 
-        public abstract IEnumerable<UserSettingExtension.SettingID> RequiredSettings { get; internal set; }
-        public abstract TimeSpan WheelLockTime { get; internal set; }
-        internal List<WheelUserItem> _items { get; private set; }
-        internal Dictionary<UserSettingExtension.SettingID, UserSetting> _settings { get; private set; }
+		public virtual IEnumerable<UserSetting.SettingID> RequiredSettings { get; internal set; } = new List<UserSetting.SettingID>();
+		public abstract TimeSpan WheelLockTime { get; internal set; }
+		internal List<WheelUserItem> Items { get; private set; }
+		internal Dictionary<UserSetting.SettingID, UserSetting> Settings { get; private set; }
 
-        public static IEnumerable<PunishmentModule> GetAll(Dictionary<UserSettingExtension.SettingID, UserSetting> settings, List<WheelUserItem> items, DiscordContext context = null)
-        {
-            if (context == null)
-            {
-                context = new DiscordContext();
-            }
+		public static IEnumerable<PunishmentModule> GetAll(Dictionary<UserSetting.SettingID, UserSetting> settings, List<WheelUserItem> items)
+		{
+			var allModules = ReflectiveEnumerator.GetEnumerableOfType<PunishmentModule>(settings, items);
+			return allModules;
+		}
 
-            var allModules = ReflectiveEnumerator.GetEnumerableOfType<PunishmentModule>(settings, items);
-            return allModules;
-        }
+		public async Task ApplySettings(DiscordContext context = null)
+		{
+			bool dispose = context == null;
 
-        public async Task ApplySettings(DiscordContext context = null)
-        {
-            if (context == null)
-            {
-                context = new DiscordContext();
-            }
+			if (context == null)
+			{
+#pragma warning disable IDE0068 // Use recommended dispose pattern
+				context = new DiscordContext();
+#pragma warning restore IDE0068 // Use recommended dispose pattern
+			}
 
-            var userId = _settings.Values.First().UserId;
+			var userId = Settings.Values.First().UserId;
 
-            foreach (var setting in _settings)
-            {
-                await UserSettingExtension.SetSettingAsync(userId, setting.Key, setting.Value.Value, context, false);
-            }
+			foreach (var setting in Settings)
+			{
+				await UserSetting.SetSettingAsync(userId, setting.Key, setting.Value.Value, context, false);
+			}
 
-            await context.SaveChangesAsync();
-        }
+			if (dispose)
+				context.Dispose();
 
-        public abstract Task Generate();
-    }
+			await context.SaveChangesAsync();
+		}
+
+		public abstract Task Generate();
+	}
 }

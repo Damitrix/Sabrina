@@ -9,7 +9,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DungeonHelper", "DungeonHel
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Sabrina", "Sabrina\Sabrina.csproj", "{B1E880D6-D196-43F2-A41F-218BA057E005}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WaifuJoi.Shared", "..\WaifuJoi\WaifuJoi.Shared\WaifuJoi.Shared.csproj", "{34666F1E-6E4E-4213-AA71-6595D9AFED78}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WaifuJoi.Shared", "..\WaifuJoi\Source\WaifuJoi.Shared\WaifuJoi.Shared.csproj", "{D8274CBF-78EE-4E62-9E02-0FC7B194ED41}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -29,10 +29,10 @@ Global
 		{B1E880D6-D196-43F2-A41F-218BA057E005}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B1E880D6-D196-43F2-A41F-218BA057E005}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B1E880D6-D196-43F2-A41F-218BA057E005}.Release|Any CPU.Build.0 = Release|Any CPU
-		{34666F1E-6E4E-4213-AA71-6595D9AFED78}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{34666F1E-6E4E-4213-AA71-6595D9AFED78}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{34666F1E-6E4E-4213-AA71-6595D9AFED78}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{34666F1E-6E4E-4213-AA71-6595D9AFED78}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D8274CBF-78EE-4E62-9E02-0FC7B194ED41}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D8274CBF-78EE-4E62-9E02-0FC7B194ED41}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D8274CBF-78EE-4E62-9E02-0FC7B194ED41}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D8274CBF-78EE-4E62-9E02-0FC7B194ED41}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

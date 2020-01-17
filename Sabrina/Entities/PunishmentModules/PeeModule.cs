@@ -8,15 +8,13 @@ namespace Sabrina.Entities.PunishmentModules
 {
     internal class PeeModule : PunishmentModule
     {
-        public PeeModule(Dictionary<UserSettingExtension.SettingID, UserSetting> settings, List<WheelUserItem> items) : base(settings, items)
+        public PeeModule(Dictionary<UserSetting.SettingID, UserSetting> settings, List<WheelUserItem> items) : base(settings, items)
         {
         }
 
         public override int Chance { get; internal set; } = 0;
         public override TimeSpan DenialTime { get; internal set; }
         public override DiscordEmbed Embed { get; internal set; }
-
-        public override IEnumerable<UserSettingExtension.SettingID> RequiredSettings { get; internal set; }
         public override TimeSpan WheelLockTime { get; internal set; }
 
         public override Task Generate()

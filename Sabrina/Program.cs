@@ -11,325 +11,404 @@ using Configuration;
 
 namespace Sabrina
 {
-    using DSharpPlus;
-    using DSharpPlus.CommandsNext;
-    using DSharpPlus.Entities;
-    using DSharpPlus.EventArgs;
-    using DSharpPlus.Interactivity;
-    using Microsoft.EntityFrameworkCore;
-    using Models;
-    using Sabrina.Bots;
-    using Sabrina.Pornhub;
-    using System;
-    using System.IO;
-    using System.Linq;
-    using System.Reflection;
-    using System.Threading.Tasks;
+	using DSharpPlus;
+	using DSharpPlus.CommandsNext;
+	using DSharpPlus.Entities;
+	using DSharpPlus.EventArgs;
+	using DSharpPlus.Interactivity;
+	using Microsoft.EntityFrameworkCore;
+	using Microsoft.Extensions.DependencyInjection;
+	using Models;
+	using Sabrina.Bots;
+	using Sabrina.Pornhub;
+	using System;
+	using System.IO;
+	using System.Linq;
+	using System.Reflection;
+	using System.Text.RegularExpressions;
+	using System.Threading;
+	using System.Threading.Tasks;
 
-    internal class Program
-    {
-        private const string Prefix = "//";
+	internal class Program
+	{
+		private const string Prefix = "//";
 
-        private DiscordClient _client;
-        private DiscordContext _context;
-        private SankakuBot _sankakuBot;
+		private readonly CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
+		private DiscordClient _client;
+		private DiscordContext _context;
+		private EventBot _eventBot;
+#pragma warning disable IDE0052 // Remove unread private members
+		private bool _guildsAvailable = false;
+		private HelpBot _helpBot;
+		private DateTime _lastCheeseHorny = DateTime.MinValue;
+		private DateTime _lastHiMark = DateTime.MinValue;
+		private PornhubBot _pornhubBot;
+#pragma warning restore IDE0052 // Remove unread private members
+		private SankakuBot _sankakuBot;
 
-        //private TumblrBot _tmblrBot;
-        private WaifuJOIBot _waifujoiBot;
+		//private TumblrBot _tmblrBot;
+		private WaifuJOIBot _waifujoiBot;
 
-        public CommandsNextModule Commands { get; set; }
-        public InteractivityModule Interactivity { get; set; }
-        public object Voice { get; private set; }
+		public CommandsNextExtension Commands { get; set; }
+		public InteractivityExtension Interactivity { get; set; }
 
-        /// <summary>
-        /// The main.
-        /// </summary>
-        /// <param name="args">The args.</param>
-        public static void Main(string[] args)
-        {
-            var prog = new Program();
-            try
-            {
-                prog.MainAsync(args).GetAwaiter().GetResult();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-                Console.WriteLine(ex.InnerException);
-                Console.ReadKey();
-                //throw ex;
-            }
-        }
+		/// <summary>
+		/// The main.
+		/// </summary>
+		/// <param name="args">The args.</param>
+		public static Task Main(string[] args)
+		{
+			AppDomain.CurrentDomain.FirstChanceException += (sender, eventArgs) =>
+			{
+				Console.WriteLine(eventArgs.Exception.ToString());
+			};
 
-        public void Dispose()
-        {
-            this._client.Dispose();
-        }
+			var prog = new Program();
+			try
+			{
+				return prog.MainAsync(args);
+			}
+			catch (Exception ex)
+			{
+				Console.WriteLine(ex.Message);
+				Console.WriteLine(ex.InnerException);
+				Console.ReadKey();
+				//throw ex;
+			}
 
-        public async Task MainAsync(string[] args)
-        {
-            this.SetConfig(args);
+			return Task.CompletedTask;
+		}
 
-            _sankakuBot = new SankakuBot(this._client); // Is Seperate Thread
-            _sankakuBot.Initialize();
+		public void Dispose()
+		{
+			this._client.Dispose();
+		}
 
-            _waifujoiBot = new WaifuJOIBot(this._client); // Is Seperate Thread
-            await _waifujoiBot.Start();
+		public async Task MainAsync(string[] args)
+		{
+			AppDomain.CurrentDomain.ProcessExit += CurrentDomain_ProcessExit;
 
-            this.SetCommands();
-            this.CreateFolders();
+			this.SetConfig(args);
+			this.CreateFolders();
 
-            await this._client.ConnectAsync();
-            this._client.MessageCreated += this.ClientMessageCreated;
-            this._client.GuildMemberUpdated += this.ClientGuildMemberUpdated;
+			_client.GuildDownloadCompleted += _client_GuildDownloadCompleted;
 
-            await this._client.UpdateStatusAsync(new DiscordGame("Feetsies"), UserStatus.Online);
+			await this._client.ConnectAsync();
+			this._client.MessageCreated += this.ClientMessageCreated;
+			this._client.GuildMemberUpdated += this.ClientGuildMemberUpdated;
 
-            // TODO: Looks weird, cause unused.
-            try
-            {
-                PornhubBot pornhubBot = new PornhubBot(this._client); // Is Seperate Thread
+			await this._client.UpdateStatusAsync(new DiscordActivity("you", ActivityType.Watching), UserStatus.Online);
 
-                HelpBot helpBot = new HelpBot(this._client); // Is Seperate Thread
-            }
-            catch (Exception e)
-            {
-                Console.Error.WriteLine(e);
-            }
+			await AnnounceVersion();
 
-            await AnnounceVersion();
+			_client.ClientErrored += Client_ClientErrored;
 
-            await Task.Run(() =>
-            {
-                var exit = false;
-                while (!exit)
-                {
-                    string command = Console.ReadLine();
-                    switch (command)
-                    {
-                        case "stop":
-                        case "exit":
-                        case "x":
-                            PornhubBot.Exit = true;
-                            exit = true;
-                            break;
-                    }
-                }
-            });
+			await Task.Run(async () => await StartBots());
 
-            await this._client.DisconnectAsync();
-        }
+			await Task.Run(() =>
+			{
+				var exit = false;
+				while (!exit)
+				{
+					string command = Console.ReadLine();
+					switch (command)
+					{
+						case "stop":
+						case "exit":
+						case "x":
+							exit = true;
+							Exit();
+							break;
+					}
+				}
+			});
 
-        private async Task AnnounceVersion()
-        {
-            var context = new DiscordContext();
+			await this._client.DisconnectAsync();
+		}
 
-            var latestVersion = await context.SabrinaVersion.OrderByDescending(v => v.VersionNumber).FirstOrDefaultAsync();
+		private Task _client_GuildDownloadCompleted(GuildDownloadCompletedEventArgs e)
+		{
+			_guildsAvailable = true;
+			return Task.CompletedTask;
+		}
 
-            if (latestVersion == null || latestVersion.WasAnnounced == 1)
-            {
-                return;
-            }
+		private async Task AnnounceVersion()
+		{
+			using var context = new DiscordContext();
+			var latestVersion = await context.SabrinaVersion.OrderByDescending(v => v.VersionNumber).FirstOrDefaultAsync();
 
-            foreach (var setting in context.SabrinaSettings)
-            {
-                long channelId = 0;
+			if (latestVersion == null || latestVersion.WasAnnounced == 1)
+			{
+				return;
+			}
 
-                if (setting.WheelChannel != null)
-                {
-                    channelId = setting.WheelChannel.Value;
-                }
-                else if (setting.ContentChannel != null)
-                {
-                    channelId = setting.ContentChannel.Value;
-                }
-                else if (setting.FeetChannel != null)
-                {
-                    channelId = setting.FeetChannel.Value;
-                }
+			foreach (var setting in context.SabrinaSettings)
+			{
+				long channelId = 0;
 
-                if (channelId == 0)
-                {
-                    continue;
-                }
+				if (setting.WheelChannel != null)
+				{
+					channelId = setting.WheelChannel.Value;
+				}
+				else if (setting.ContentChannel != null)
+				{
+					channelId = setting.ContentChannel.Value;
+				}
+				else if (setting.FeetChannel != null)
+				{
+					channelId = setting.FeetChannel.Value;
+				}
 
-                try
-                {
-                    var channel = await _client.GetChannelAsync(Convert.ToUInt64(channelId));
+				if (channelId == 0)
+				{
+					continue;
+				}
 
-                    DiscordEmbedBuilder builder = new DiscordEmbedBuilder()
-                    {
-                        Title = $"I've received an upgrade! (v{latestVersion.VersionNumber})",
-                        Description = latestVersion.Description.Replace("\\n", Environment.NewLine),
-                        Color = new DiscordColor(70, 254, 31)
-                    };
+				try
+				{
+					var channel = await _client.GetChannelAsync(Convert.ToUInt64(channelId));
 
-                    await channel.SendMessageAsync(embed: builder.Build());
-                }
-                catch (Exception)
-                {
-                }
-            }
+					DiscordEmbedBuilder builder = new DiscordEmbedBuilder()
+					{
+						Title = $"I've received an upgrade! (v{latestVersion.VersionNumber})",
+						Description = latestVersion.Description.Replace("\\n", Environment.NewLine),
+						Color = new DiscordColor(70, 254, 31)
+					};
 
-            latestVersion.WasAnnounced = 1;
+					await channel.SendMessageAsync(embed: builder.Build());
+				}
+				catch (Exception)
+				{
+				}
+			}
 
-            await context.SaveChangesAsync();
-        }
+			latestVersion.WasAnnounced = 1;
 
-        /// <summary>
-        /// Call when a Discord Client gets updated. Used to combat nickname-rename shenanigans by Obe
-        /// </summary>
-        /// <param name="e">The Event Args.</param>
-        /// <returns>The <see cref="Task"/>.</returns>
-        private async Task ClientGuildMemberUpdated(GuildMemberUpdateEventArgs e)
-        {
-            if (e.Member.Id == 450771319479599114)
-            {
-                await (await e.Guild.GetMemberAsync(450771319479599114)).ModifyAsync(
-                    nickname: "Sabrina");
-            }
+			await context.SaveChangesAsync();
+		}
 
-            if (e.Member.Id == 249216025931939841)
-            {
-                await (await e.Guild.GetMemberAsync(249216025931939841)).ModifyAsync(
-                    nickname: "Salem");
-            }
-        }
+		private Task Client_ClientErrored(ClientErrorEventArgs e)
+		{
+			Console.WriteLine("Client Error occured:");
+			Console.WriteLine("Event: " + e.EventName);
+			Console.WriteLine("Message: " + e.Exception.Message);
+			return Task.CompletedTask;
+		}
 
-        /// <summary>
-        /// Call when client Message is created. Logs all Messages to Database.
-        /// </summary>
-        /// <param name="e">The Message Event Args.</param>
-        /// <returns>A <see cref="Task"/>.</returns>
-        private async Task ClientMessageCreated(MessageCreateEventArgs e)
-        {
-            var context = new DiscordContext();
+		/// <summary>
+		/// Call when a Discord Client gets updated. Used to combat nickname-rename shenanigans by Obe
+		/// </summary>
+		/// <param name="e">The Event Args.</param>
+		/// <returns>The <see cref="Task"/>.</returns>
+		private async Task ClientGuildMemberUpdated(GuildMemberUpdateEventArgs e)
+		{
+			if (e.Guild.Permissions == null || !e.Guild.Permissions.Value.HasFlag(Permissions.ManageNicknames))
+			{
+				return;
+			}
 
-            if (context.Messages.Any(msg => msg.MessageId == Convert.ToInt64(e.Message.Id)))
-            {
-                return;
-            }
+			if (e.Member.Id == 450771319479599114)
+			{
+				await (await e.Guild.GetMemberAsync(450771319479599114)).ModifyAsync(e => e.Nickname = "Sabrina");
+			}
 
-            var user = await UserExtension.GetUser(e.Message.Author.Id, context);
+			if (e.Member.Id == 249216025931939841)
+			{
+				await (await e.Guild.GetMemberAsync(249216025931939841)).ModifyAsync(e => e.Nickname = "Salem");
+			}
+		}
 
-            var cMsg = new Messages()
-            {
-                AuthorId = Convert.ToInt64(user.UserId),
-                MessageText = e.Message.Content,
-                ChannelId = Convert.ToInt64(e.Message.Channel.Id),
-                CreationDate = e.Message.CreationTimestamp.DateTime,
-                MessageId = Convert.ToInt64(e.Message.Id)
-            };
+		/// <summary>
+		/// Call when client Message is created. Logs all Messages to Database.
+		/// </summary>
+		/// <param name="e">The Message Event Args.</param>
+		/// <returns>A <see cref="Task"/>.</returns>
+		private async Task ClientMessageCreated(MessageCreateEventArgs e)
+		{
+			var ohMatch = Regex.Match(e.Message.Content, "oh([.,!,?]?)", RegexOptions.IgnoreCase);
 
-            try
-            {
-                user = await UserExtension.GetUser(e.Message.Author.Id, context);
+			if (ohMatch.Success && e.Message.Content.Length < 4 && _lastHiMark < DateTime.Now - TimeSpan.FromMinutes(60))
+			{
+				string himark = e.Message.Content.StartsWith("OH") ? "HI MARK" : "Hi Mark";
+				string mark = ohMatch.Groups.Count > 0 && ohMatch.Groups[1].Value.Contains('.', '?', '!') ? ohMatch.Groups[1].Value : "";
+				await e.Channel.SendMessageAsync($"{himark}{mark}");
+				_lastHiMark = DateTime.Now;
+			}
 
-                await _context.Messages.AddAsync(cMsg);
-                await _context.SaveChangesAsync();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Error trying to enter Message into Database");
-                Console.WriteLine(ex.Message);
-            }
-        }
+			if (e.Author.Id == 503662068050952192 && e.Message.Content.Contains("horny", StringComparison.InvariantCultureIgnoreCase) && _lastCheeseHorny < DateTime.Now - TimeSpan.FromMinutes(60))
+			{
+				await e.Channel.SendMessageAsync("Yes Cheese, we know you're horny");
+				_lastCheeseHorny = DateTime.Now;
+			}
 
-        /// <summary>
-        /// Create missing folders.
-        /// </summary>
-        private void CreateFolders()
-        {
-            if (!Directory.Exists(Config.BotFileFolders.SlaveReports))
-            {
-                Directory.CreateDirectory(Config.BotFileFolders.SlaveReports);
-            }
+			using var context = new DiscordContext();
 
-            if (!Directory.Exists(Config.BotFileFolders.WheelResponses))
-            {
-                Directory.CreateDirectory(Config.BotFileFolders.WheelResponses);
-            }
+			if (context.Messages.Any(msg => msg.MessageId == Convert.ToInt64(e.Message.Id)))
+			{
+				return;
+			}
 
-            if (!Directory.Exists(Config.BotFileFolders.WheelLinks))
-            {
-                Directory.CreateDirectory(Config.BotFileFolders.WheelLinks);
-            }
+			var user = await UserExtension.GetUser(e.Message.Author.Id, context);
 
-            if (!Directory.Exists(Config.BotFileFolders.UserData))
-            {
-                Directory.CreateDirectory(Config.BotFileFolders.UserData);
-            }
+			var cMsg = new Messages()
+			{
+				AuthorId = Convert.ToInt64(user.UserId),
+				MessageText = e.Message.Content,
+				ChannelId = Convert.ToInt64(e.Message.Channel.Id),
+				CreationDate = e.Message.CreationTimestamp.DateTime,
+				MessageId = Convert.ToInt64(e.Message.Id)
+			};
 
-            if (!Directory.Exists(Config.BotFileFolders.Media))
-            {
-                Directory.CreateDirectory(Config.BotFileFolders.Media);
-            }
-        }
+			try
+			{
+				user = await UserExtension.GetUser(e.Message.Author.Id, context);
 
-        private void SetCommands()
-        {
-            DependencyCollection dep = null;
-            using (var d = new DependencyCollectionBuilder())
-            {
-                d.AddInstance(new Dependencies()
-                {
-                    SankakuBot = this._sankakuBot,
-                    WaifuJoiBot = this._waifujoiBot
-                });
-                dep = d.Build();
-            }
+				await _context.Messages.AddAsync(cMsg);
+				await _context.SaveChangesAsync();
+			}
+			catch (Exception ex)
+			{
+				Console.WriteLine("Error trying to enter Message into Database");
+				Console.WriteLine(ex.Message);
+			}
+		}
 
-            var ccfg = new CommandsNextConfiguration()
-            {
-                CaseSensitive = false,
-                EnableDefaultHelp = true,
-                EnableDms = false,
-                EnableMentionPrefix = true,
-                IgnoreExtraArguments = true,
-                StringPrefix = Prefix,
-                Dependencies = dep
-            };
+		/// <summary>
+		/// Create missing folders.
+		/// </summary>
+		private void CreateFolders()
+		{
+			if (!Directory.Exists(Config.BotFileFolders.SlaveReports))
+			{
+				Directory.CreateDirectory(Config.BotFileFolders.SlaveReports);
+			}
 
-            this._context = new DiscordContext();
-            this.Commands = this._client.UseCommandsNext(ccfg);
+			if (!Directory.Exists(Config.BotFileFolders.WheelResponses))
+			{
+				Directory.CreateDirectory(Config.BotFileFolders.WheelResponses);
+			}
 
-            foreach (Type type in Assembly.GetExecutingAssembly().GetTypes().Where(t => t.IsClass && t.Namespace == "Sabrina.Commands" && t.DeclaringType == null))
-            {
-                if (type == null || type.Name == "BlackJackGame" || type.IsAbstract || type.FullName == "Sabrina.Commands.Edges+<AssignEdgesAsync>d__2") //Really shitty solution, but im lazy
-                {
-                    continue;
-                }
-                var info = type.GetTypeInfo();
-                this.Commands.RegisterCommands(type);
-            }
-        }
+			if (!Directory.Exists(Config.BotFileFolders.WheelLinks))
+			{
+				Directory.CreateDirectory(Config.BotFileFolders.WheelLinks);
+			}
 
-        private void SetConfig(string[] args)
-        {
-            if (args.Length > 0)
-            {
-                Config.ConfigPath = args[0];
-            }
+			if (!Directory.Exists(Config.BotFileFolders.UserData))
+			{
+				Directory.CreateDirectory(Config.BotFileFolders.UserData);
+			}
 
-            var config = new DiscordConfiguration
-            {
-                AutoReconnect = true,
-                MessageCacheSize = 2048,
-                LogLevel = LogLevel.Debug,
-                Token = Config.Token,
-                TokenType = TokenType.Bot,
-                UseInternalLogHandler = true
-            };
+			if (!Directory.Exists(Config.BotFileFolders.Media))
+			{
+				Directory.CreateDirectory(Config.BotFileFolders.Media);
+			}
+		}
 
-            this._client = new DiscordClient(config);
+		private void CurrentDomain_ProcessExit(object sender, EventArgs e)
+		{
+			Exit();
+		}
 
-            this.Interactivity = this._client.UseInteractivity(
-                new InteractivityConfiguration()
-                {
-                    PaginationBehaviour = TimeoutBehaviour.Default,
-                    PaginationTimeout = TimeSpan.FromSeconds(30),
-                    Timeout = TimeSpan.FromSeconds(30)
-                });
-        }
-    }
+		private void Exit()
+		{
+			try
+			{
+				_cancellationTokenSource.Cancel();
+				_cancellationTokenSource.Dispose();
+				_pornhubBot?.Dispose();
+				_sankakuBot?.Dispose();
+				_waifujoiBot?.Dispose();
+				_helpBot?.Dispose();
+				_eventBot?.Dispose();
+			}
+			catch (TaskCanceledException)
+			{
+			}
+
+			Console.WriteLine("Exiting");
+		}
+
+		private void SetCommands()
+		{
+			var serviceCollection = new ServiceCollection();
+
+			serviceCollection.AddSingleton(this._sankakuBot);
+			serviceCollection.AddSingleton(this._waifujoiBot);
+
+			var ccfg = new CommandsNextConfiguration()
+			{
+				CaseSensitive = false,
+				EnableDefaultHelp = true,
+				EnableDms = false,
+				EnableMentionPrefix = true,
+				IgnoreExtraArguments = true,
+				StringPrefixes = new[] { Prefix },
+				Services = serviceCollection.BuildServiceProvider()
+			};
+
+			this._context = new DiscordContext();
+			this.Commands = this._client.UseCommandsNext(ccfg);
+
+			this.Commands.RegisterCommands(Assembly.GetExecutingAssembly());
+		}
+
+		private void SetConfig(string[] args)
+		{
+			if (args.Length > 0)
+			{
+				Config.ConfigPath = args[0];
+			}
+
+			var config = new DiscordConfiguration
+			{
+				AutoReconnect = true,
+				MessageCacheSize = 2048,
+				LogLevel = LogLevel.Debug,
+				Token = Config.Token,
+				TokenType = TokenType.Bot,
+				UseInternalLogHandler = true
+			};
+
+			this._client = new DiscordClient(config);
+
+			this.Interactivity = this._client.UseInteractivity(
+				new InteractivityConfiguration()
+				{
+					PaginationBehaviour = DSharpPlus.Interactivity.Enums.PaginationBehaviour.Default,
+					Timeout = TimeSpan.FromSeconds(30)
+				});
+		}
+
+		private async Task StartBots()
+		{
+			while (!_guildsAvailable)
+			{
+				await Task.Delay(100);
+			}
+
+			Console.WriteLine("Guilds available. Starting bots");
+
+			try
+			{
+				_sankakuBot = new SankakuBot(this._client); // Is Seperate Thread
+				_sankakuBot.Initialize();
+
+				_waifujoiBot = new WaifuJOIBot(this._client); // Is Seperate Thread
+				await _waifujoiBot.Start();
+
+				_eventBot = new EventBot(this._client, _cancellationTokenSource.Token); // Is Seperate Thread
+				await _eventBot.Start();
+
+				_pornhubBot = new PornhubBot(this._client, _cancellationTokenSource.Token); // Is Seperate Thread
+
+				_helpBot = new HelpBot(this._client); // Is Seperate Thread
+
+				this.SetCommands();
+			}
+			catch (Exception e)
+			{
+				Console.Error.WriteLine(e);
+			}
+		}
+	}
 }

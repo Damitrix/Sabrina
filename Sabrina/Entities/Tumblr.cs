@@ -1,20 +1,19 @@
 ﻿// To parse this JSON data, add NuGet 'Newtonsoft.Json' then do:
 //
-//    using ImgurOffline;
+// using ImgurOffline;
 //
-//    var tumblrPost = TumblrPost.FromJson(jsonString);
+// var tumblrPost = TumblrPost.FromJson(jsonString);
 
 // To parse this JSON data, add NuGet 'Newtonsoft.Json' then do:
 //
-//    using ImgurOffline;
+// using ImgurOffline;
 //
-//    var tumblrPost = TumblrPost.FromJson(jsonString);
+// var tumblrPost = TumblrPost.FromJson(jsonString);
 
 namespace Sabrina.Entities.TumblrBlog
 {
-    // To parse this JSON data, add NuGet 'Newtonsoft.Json' then do:
-    // using ImgurOffline;
-    // var tumblrBlog = TumblrBlog.FromJson(jsonString);
+    // To parse this JSON data, add NuGet 'Newtonsoft.Json' then do: using ImgurOffline; var
+    // tumblrBlog = TumblrBlog.FromJson(jsonString);
 
     using Newtonsoft.Json;
     using Newtonsoft.Json.Converters;

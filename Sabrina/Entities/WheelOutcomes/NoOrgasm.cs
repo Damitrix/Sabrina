@@ -1,105 +1,104 @@
 ﻿// --------------------------------------------------------------------------------------------------------------------
 // <copyright file="NoOrgasm.cs" company="">
-//
 // </copyright>
 // <summary>
-//   Defines the NoOrgasm type.
+// Defines the NoOrgasm type.
 // </summary>
 // --------------------------------------------------------------------------------------------------------------------
 
 namespace Sabrina.Entities.WheelOutcomes
 {
-    using DSharpPlus.Entities;
-    using Models;
-    using System;
-    using System.Collections.Generic;
-    using System.Linq;
-    using System.Threading.Tasks;
-    using WheelOutcome = Persistent.WheelOutcome;
+	using DSharpPlus.Entities;
+	using Models;
+	using System;
+	using System.Collections.Generic;
+	using System.Linq;
+	using System.Threading.Tasks;
+	using WheelOutcome = Persistent.WheelOutcome;
 
-    /// <summary>
-    /// The no orgasm Outcome.
-    /// </summary>
-    internal sealed class NoOrgasm : WheelOutcome
-    {
-        /// <summary>
-        /// Initializes a new instance of the <see cref="NoOrgasm"/> class.
-        /// </summary>
-        /// <param name="outcome">
-        /// The outcome.
-        /// </param>
-        /// <param name="settings">
-        /// The settings.
-        /// </param>
-        public NoOrgasm(WheelExtension.Outcome outcome, Dictionary<UserSettingExtension.SettingID, UserSetting> settings, List<WheelUserItem> items, Dependencies dependencies) : base(outcome, settings, items, dependencies)
-        {
-        }
+	/// <summary>
+	/// The no orgasm Outcome.
+	/// </summary>
+	internal sealed class NoOrgasm : WheelOutcome
+	{
+		/// <summary>
+		/// Initializes a new instance of the <see cref="NoOrgasm"/> class.
+		/// </summary>
+		/// <param name="outcome">The outcome.</param>
+		/// <param name="settings">The settings.</param>
+		public NoOrgasm(UserSetting.Outcome outcome, Dictionary<UserSetting.SettingID, UserSetting> settings, List<WheelUserItem> items, IServiceProvider services) : base(outcome, settings, items, services)
+		{
+		}
 
-        /// <summary>
-        /// Gets or sets the chance.
-        /// </summary>
-        public override int Chance { get; protected set; } = 40;
+		private NoOrgasm()
+		{
+		}
 
-        /// <summary>
-        /// Gets or sets the denial time.
-        /// </summary>
-        public override TimeSpan DenialTime { get; protected set; }
+		/// <summary>
+		/// Gets or sets the chance.
+		/// </summary>
+		public override int Chance { get; protected set; } = 40;
 
-        /// <summary>
-        /// Gets or sets the embed.
-        /// </summary>
-        public override DiscordEmbed Embed { get; protected set; }
+		/// <summary>
+		/// Gets or sets the denial time.
+		/// </summary>
+		public override TimeSpan DenialTime { get; protected set; }
 
-        /// <summary>
-        /// Gets or sets the outcome.
-        /// </summary>
-        public override WheelExtension.Outcome Outcome { get; protected set; }
+		/// <summary>
+		/// Gets or sets the embed.
+		/// </summary>
+		public override DiscordEmbed Embed { get; protected set; }
 
-        /// <summary>
-        /// Gets or sets the text to display to the user.
-        /// </summary>
-        public override string Text { get; protected set; }
+		/// <summary>
+		/// Gets or sets the outcome.
+		/// </summary>
+		public override UserSetting.Outcome Outcome { get; protected set; }
 
-        /// <summary>
-        /// Gets or sets the wheel locked time.
-        /// </summary>
-        public override TimeSpan WheelLockedTime { get; protected set; }
+		/// <summary>
+		/// Gets or sets the text to display to the user.
+		/// </summary>
+		public override string Text { get; protected set; }
 
-        public override Task BuildAsync()
-        {
-            if (!Outcome.HasFlag(WheelExtension.Outcome.Denial))
-            {
-                Outcome = WheelExtension.Outcome.NotSet;
-                return Task.CompletedTask;
-            }
+		/// <summary>
+		/// Gets or sets the wheel locked time.
+		/// </summary>
+		public override TimeSpan WheelLockedTime { get; protected set; }
 
-            int minNum = 1;
-            int maxNum = 4;
+		public override Task BuildAsync()
+		{
+			if (!Outcome.HasFlag(UserSetting.Outcome.Denial))
+			{
+				Outcome = UserSetting.Outcome.NotSet;
+				return Task.CompletedTask;
+			}
 
-            WheelExtension.WheelDifficultyPreference difficulty = WheelExtension.WheelDifficultyPreference.Default;
+			int minNum = 1;
+			int maxNum = 4;
 
-            if (_settings.ContainsKey(UserSettingExtension.SettingID.WheelDifficulty))
-            {
-                difficulty = _settings.First(setting => setting.Key == UserSettingExtension.SettingID.WheelDifficulty).Value.GetValue<WheelExtension.WheelDifficultyPreference>();
-            }
+			UserSetting.WheelDifficultyPreference difficulty = UserSetting.WheelDifficultyPreference.Default;
 
-            maxNum *= (int)difficulty;
+			if (_settings.ContainsKey(UserSetting.SettingID.WheelDifficulty))
+			{
+				difficulty = _settings.First(setting => setting.Key == UserSetting.SettingID.WheelDifficulty).Value.GetValue<UserSetting.WheelDifficultyPreference>();
+			}
 
-            int rndNumber = Helpers.RandomGenerator.RandomInt(minNum, maxNum);
+			maxNum *= (int)difficulty;
 
-            this.DenialTime = new TimeSpan(rndNumber, 0, 0);
+			int rndNumber = Helpers.RandomGenerator.RandomInt(minNum, maxNum);
 
-            DiscordEmbedBuilder builder = new DiscordEmbedBuilder()
-            {
-                Title = "No Orgasm for you!",
-                Description = "Try again in a few hours :P"
-            };
+			this.DenialTime = new TimeSpan(rndNumber, 0, 0);
 
-            this.Embed = builder.Build();
-            this.Text = "No orgasm for you! Try again in a few hours :P";
-            this.Outcome = WheelExtension.Outcome.Denial;
+			DiscordEmbedBuilder builder = new DiscordEmbedBuilder()
+			{
+				Title = "No Orgasm for you!",
+				Description = "Try again in a few hours :P"
+			};
 
-            return Task.CompletedTask;
-        }
-    }
+			this.Embed = builder.Build();
+			this.Text = "No orgasm for you! Try again in a few hours :P";
+			this.Outcome = UserSetting.Outcome.Denial;
+
+			return Task.CompletedTask;
+		}
+	}
 }

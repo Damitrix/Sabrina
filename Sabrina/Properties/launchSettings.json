@@ -1,7 +1,8 @@
 {
   "profiles": {
     "Sabrina": {
-      "commandName": "Project"
+      "commandName": "Project",
+      "nativeDebugging": false
     }
   }
 }

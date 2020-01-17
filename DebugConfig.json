@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "adapter": "C:\\Program Files\\PuTTY\\plink.exe",
+  "adapterArgs": "-i C:\\Users\\Chris\\Documents\\SSHPrivate.ppk root@salemstools.ddns.net -batch -T ~/vsdbg/vsdbg --interpreter=vscode",
+  "configurations": [
+    {
+      "name": ".NET Core Launch",
+      "type": "coreclr",
+      "processId": 6051,
+      "request": "attach"
+    }
+  ]
+}

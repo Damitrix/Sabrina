@@ -1,5 +1,6 @@
 ﻿using DSharpPlus;
 using DSharpPlus.Entities;
+using Microsoft.EntityFrameworkCore;
 using Sabrina.Entities;
 using Sabrina.Models;
 using System;
@@ -10,226 +11,377 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Timers;
 using WaifuJoi.Shared.Models;
-using Creator = WaifuJoi.Shared.Models.Creator;
 using Timer = System.Timers.Timer;
 
 namespace Sabrina.Bots
 {
-    internal class WaifuJOIBot
-    {
-        private const string BaseAddress = "https://waifujoi.app";
-        private static readonly string AlbumAddress = BaseAddress + "/api/album";
-        private static readonly string ContentAddress = BaseAddress + "/api/content";
-        private static readonly string CreatorsAddress = BaseAddress + "/api/creators";
-        private static readonly string ImageAddress = ContentAddress + "/image";
-        private static readonly string ThumbnailAddress = ContentAddress + "/thumbnail";
-        private readonly Dictionary<long, List<Content>> _cachedImages = new Dictionary<long, List<Content>>();
-        private readonly DiscordClient _client;
+	public class WaifuJOIBot : IDisposable
+	{
+		private const string BaseAddress = "https://waifujoi.app/";
 
-        private Timer _postTimer;
+		//private const string BaseAddress = "http://localhost:5000/";
+		private readonly Dictionary<long, List<Content>> _cachedImages = new Dictionary<long, List<Content>>();
 
-        //private Timer _scrapeTimer;
-        private Timer _updateCacheTimer;
+		private readonly CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
+		private readonly DiscordClient _client;
+		private readonly HttpClient _httpClient = new HttpClient();
+		private Timer _announceTimer;
+		private Timer _postTimer;
+		private Timer _updateCacheTimer;
+		private bool disposed = false;
 
-        public WaifuJOIBot(DiscordClient client)
-        {
-            _client = client;
-        }
+		public WaifuJOIBot(DiscordClient client)
+		{
+			_client = client;
+		}
 
-        public static string GetCreatorUrl(int id)
-        {
-            return CreatorsAddress + "/" + id;
-        }
+		public Thread MainThread { get; private set; }
 
-        public static string GetImageUrl(string id)
-        {
-            return ImageAddress + "/" + id;
-        }
+		public static string GetCreatorUrl(int id)
+		{
+			return BaseAddress
+				   + WaifuJoi.Shared.Features.User.GetUserRequest.Route
+				   + "?id="
+				   + id;
+		}
 
-        public Content GetRandomPicture(long? channelId = null)
-        {
-            DiscordContext context = new DiscordContext();
-            Content imageToPost = null;
-            var time = DateTime.Now - TimeSpan.FromDays(90);
-            var posts = context.WaifuJoiContentPost.Where(post => post.Time > time).OrderBy(p => p.Time).ToList();
+		public static string GetImageUrl(string id)
+		{
+			return BaseAddress + "api/content/image/" + id;
+		}
 
-            if (channelId != null)
-            {
-                if (!_cachedImages.ContainsKey(channelId.Value))
-                {
-                    return null;
-                }
+		public void Dispose()
+		{
+			Dispose(true);
+			GC.SuppressFinalize(this);
+		}
 
-                var viableImages = _cachedImages[channelId.Value].Where(img => posts.All(post => post.ContentId != img.Id));
+		public async Task<Content> GetRandomPicture(long? channelId = null, CancellationToken cancellationToken = default)
+		{
+			using DiscordContext context = new DiscordContext();
+			Content imageToPost = null;
+			var time = DateTime.Now - TimeSpan.FromDays(90);
+			var posts = (await context.WaifuJoiContentPost.Where(post => post.Time > time).OrderBy(p => p.Time).ToArrayAsync(cancellationToken)).GroupBy(p => p.ContentId).ToDictionary(p => p.Key, p => p.Max(s => s.Time));
 
-                imageToPost = viableImages.Skip(Helpers.RandomGenerator.RandomInt(0, viableImages.Count() - 1)).FirstOrDefault();
+			if (channelId != null)
+			{
+				if (!_cachedImages.ContainsKey(channelId.Value) || _cachedImages[channelId.Value].Count == 0)
+				{
+					return null;
+				}
 
-                if (imageToPost == null)
-                {
-                    var groupedPosts = posts.GroupBy(p => p.ContentId).OrderBy(gp => gp.OrderByDescending(g => g.Time).First().Time);
+				var viableImages = _cachedImages[channelId.Value].Where(img => posts.All(post => post.Key != img.Id));
 
-                    // Get longest non-posted
-                    foreach (var post in groupedPosts)
-                    {
-                        imageToPost = _cachedImages[channelId.Value].FirstOrDefault(cImg => cImg.Id == post.First().ContentId);
-                        if (imageToPost != null)
-                        {
-                            break;
-                        }
-                    }
-                }
-            }
-            else
-            {
-                var viableImages = _cachedImages.First().Value.Where(img => posts.All(post => post.ContentId != img.Id));
+				if (viableImages.Count() == 0)
+				{
+					time = DateTime.Now - TimeSpan.FromDays(60);
+					posts = (await context.WaifuJoiContentPost.Where(post => post.Time > time).OrderBy(p => p.Time).ToArrayAsync(cancellationToken)).GroupBy(p => p.ContentId).ToDictionary(p => p.Key, p => p.Max(s => s.Time));
+					viableImages = _cachedImages[channelId.Value].Where(img => posts.All(post => post.Key != img.Id));
+				}
 
-                imageToPost = viableImages.Skip(Helpers.RandomGenerator.RandomInt(0, viableImages.Count() - 1)).FirstOrDefault();
+				if (viableImages.Count() == 0)
+				{
+					time = DateTime.Now - TimeSpan.FromDays(30);
+					posts = (await context.WaifuJoiContentPost.Where(post => post.Time > time).OrderBy(p => p.Time).ToArrayAsync(cancellationToken)).GroupBy(p => p.ContentId).ToDictionary(p => p.Key, p => p.Max(s => s.Time));
+					viableImages = _cachedImages[channelId.Value].Where(img => posts.All(post => post.Key != img.Id));
+				}
 
-                if (imageToPost == null)
-                {
-                    var groupedPosts = posts.GroupBy(p => p.ContentId).OrderBy(gp => gp.OrderByDescending(g => g.Time).First().Time);
+				imageToPost = viableImages.Skip(Helpers.RandomGenerator.RandomInt(0, viableImages.Count() - 1)).FirstOrDefault();
 
-                    // Get longest non-posted
-                    foreach (var post in groupedPosts)
-                    {
-                        imageToPost = _cachedImages.First().Value.FirstOrDefault(cImg => cImg.Id == post.First().ContentId);
-                        if (imageToPost != null)
-                        {
-                            break;
-                        }
-                    }
-                }
-            }
+				if (imageToPost == null)
+				{
+					var groupedPosts = posts.GroupBy(p => p.Key).OrderBy(gp => gp.Max(g => g.Value));
 
-            return imageToPost;
-        }
+					// Get longest non-posted
+					foreach (var post in groupedPosts)
+					{
+						imageToPost = _cachedImages[channelId.Value].FirstOrDefault(cImg => cImg.Id == post.First().Key);
+						if (imageToPost != null)
+						{
+							break;
+						}
+					}
+				}
+			}
+			else
+			{
+				var viableImages = _cachedImages.First().Value.Where(img => posts.All(post => post.Key != img.Id));
 
-        public async Task PostRandom(DiscordChannel channel)
-        {
-            Console.WriteLine($"Waifubot: PostRandom {channel.Id}");
-            DiscordContext context = new DiscordContext();
+				imageToPost = viableImages.Skip(Helpers.RandomGenerator.RandomInt(0, viableImages.Count() - 1)).FirstOrDefault();
 
-            var channelId = Convert.ToInt64(channel.Id);
+				if (imageToPost == null)
+				{
+					var groupedPosts = posts.GroupBy(p => p.Key).OrderBy(gp => gp.Max(g => g.Value));
 
-            var imageToPost = GetRandomPicture(channelId);
+					// Get longest non-posted
+					foreach (var post in groupedPosts)
+					{
+						imageToPost = _cachedImages.First().Value.FirstOrDefault(cImg => cImg.Id == post.First().Key);
+						if (imageToPost != null)
+						{
+							break;
+						}
+					}
+				}
+			}
 
-            if (imageToPost == null)
-            {
-                return;
-            }
+			return imageToPost;
+		}
 
-            HttpClient client = new HttpClient();
-            var response = await client.GetAsync(CreatorsAddress + "/" + imageToPost.CreatorId);
-            var creator = await MessagePack.MessagePackSerializer.DeserializeAsync<Creator>(
-                await response.Content.ReadAsStreamAsync());
+		public async Task PostRandom(DiscordChannel channel, CancellationToken cancellationToken)
+		{
+			Console.WriteLine($"Waifubot: PostRandom {channel.Id}");
+			using DiscordContext context = new DiscordContext();
 
-            DiscordEmbedBuilder builder = new DiscordEmbedBuilder()
-            {
-                Author = new DiscordEmbedBuilder.EmbedAuthor()
-                {
-                    Name = creator.Name,
-                    IconUrl = ThumbnailAddress + "/" + creator.Avatar,
-                    Url = BaseAddress + "/profile/" + creator.Id
-                },
-                Color = new DiscordColor("#cf5ed4"),
-                Title = context.Puns.Skip(Helpers.RandomGenerator.RandomInt(0, context.Puns.Count() - 1)).First()
-                    .Text,
-                ImageUrl = GetImageUrl(imageToPost.Id)
-            };
-            Console.WriteLine("WaifuBot: Sending embed");
-            await channel.SendMessageAsync(embed: builder.Build());
-            Console.WriteLine("Waifubot: Sending embed finished");
-            await context.WaifuJoiContentPost.AddAsync(new WaifuJoiContentPost()
-            {
-                ContentId = imageToPost.Id,
-                Time = DateTime.Now
-            });
+			var channelId = Convert.ToInt64(channel.Id);
 
-            await context.SaveChangesAsync();
-        }
+			var imageToPost = await GetRandomPicture(channelId, cancellationToken);
 
-        public Task Start()
-        {
-            Thread mainThread = new Thread(async () =>
-            {
-                _postTimer = new Timer(TimeSpan.FromMinutes(60).TotalMilliseconds)
-                {
-                    AutoReset = true
-                };
-                _postTimer.Elapsed += async (object sender, ElapsedEventArgs e) => await PostToAll();
+			if (imageToPost == null)
+			{
+				return;
+			}
 
-                _postTimer.Start();
+			HttpClient client = new HttpClient();
+			using var response = await client.GetAsync(GetCreatorUrl(imageToPost.CreatorId), cancellationToken);
+			using var stream = await response.Content.ReadAsStreamAsync();
+			var creator = await MessagePack.MessagePackSerializer.DeserializeAsync<WaifuJoi.Shared.Features.User.GetUserResponse>(stream);
 
-                _updateCacheTimer = new Timer(TimeSpan.FromMinutes(480).TotalMilliseconds)
-                {
-                    AutoReset = true
-                };
-                _updateCacheTimer.Elapsed += async (object sender, ElapsedEventArgs e) => await RefreshCache();
+			DiscordEmbedBuilder builder = new DiscordEmbedBuilder()
+			{
+				Author = new DiscordEmbedBuilder.EmbedAuthor()
+				{
+					Name = creator.User.Name,
+					IconUrl = BaseAddress + "api/thumbnail/" + creator.User.Avatar,
+					Url = BaseAddress + "/profile/" + creator.User.Id
+				},
+				Color = new DiscordColor("#cf5ed4"),
+				Title = context.Puns.Skip(Helpers.RandomGenerator.RandomInt(0, context.Puns.Count() - 1)).First()
+					.Text,
+				ImageUrl = GetImageUrl(imageToPost.Id)
+			};
+			Console.WriteLine("WaifuBot: Sending embed");
+			_ = channel.SendMessageAsync(embed: builder.Build());
+			Console.WriteLine("Waifubot: Sending embed finished");
+			context.WaifuJoiContentPost.Add(new WaifuJoiContentPost()
+			{
+				ContentId = imageToPost.Id,
+				Time = DateTime.Now
+			});
 
-                await RefreshCache();
-            });
+			await context.SaveChangesAsync();
+		}
 
-            mainThread.Start();
+		public Task Start()
+		{
+			MainThread = new Thread(async () =>
+			{
+				_postTimer = new Timer(TimeSpan.FromMinutes(60).TotalMilliseconds)
+				{
+					AutoReset = true
+				};
+				_postTimer.Elapsed += async (object sender, ElapsedEventArgs e) => await PostToAll();
+				_postTimer.Start();
 
-            return Task.CompletedTask;
-        }
+				_updateCacheTimer = new Timer(TimeSpan.FromMinutes(480).TotalMilliseconds)
+				{
+					AutoReset = true
+				};
+				_updateCacheTimer.Elapsed += async (object sender, ElapsedEventArgs e) => await RefreshCache();
+				_updateCacheTimer.Start();
 
-        private async Task PostToAll()
-        {
-            Console.WriteLine("WaifuBot: Sending to all");
-            DiscordContext context = new DiscordContext();
+				_announceTimer = new Timer(TimeSpan.FromMinutes(20).TotalMilliseconds)
+				{
+					AutoReset = true
+				};
+				_announceTimer.Elapsed += async (object sender, ElapsedEventArgs e) => await AnnounceNewestContent();
+				_announceTimer.Start();
 
-            var channels = context.SabrinaSettings.Where(ss => ss.FeetChannel != null).Select(setting => setting.FeetChannel.Value);
+				await AnnounceNewestContent();
+				await RefreshCache();
+			});
 
-            foreach (var channelId in channels)
-            {
-                DiscordChannel channel = null;
+			MainThread.Start();
 
-                if (_client.Guilds.Any(g => g.Value.Channels.Any(c => c.Id == Convert.ToUInt64(channelId))))
-                {
-                    channel = await _client.GetChannelAsync(Convert.ToUInt64(channelId));
+			return Task.CompletedTask;
+		}
 
-                    try
-                    {
-                        await PostRandom(channel);
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine("Error in WaifuJOIBot PostRandom");
-                        Console.WriteLine(e);
-                    }
-                }
-            }
-        }
+		protected virtual void Dispose(bool disposing)
+		{
+			if (disposed)
+			{
+				return;
+			}
 
-        private async Task RefreshCache()
-        {
-            Console.WriteLine("WaifuBot: Refreshing Cache");
-            _cachedImages.Clear();
+			if (disposing)
+			{
+				_cancellationTokenSource.Cancel();
+				_cancellationTokenSource.Dispose();
 
-            DiscordContext context = new DiscordContext();
+				_updateCacheTimer.Stop();
+				_postTimer.Stop();
+				_announceTimer.Stop();
+				_httpClient.Dispose();
+				_postTimer.Dispose();
+				_updateCacheTimer.Dispose();
+				_announceTimer.Dispose();
+			}
 
-            var groupedChannels = context.WaifuJoiAlbum.GroupBy(album => album.ChannelId);
-            Random rnd = new Random();
+			disposed = true;
+		}
 
-            HttpClient client = new HttpClient();
+		private async Task AnnounceNewestContent()
+		{
+			WaifuJoi.Shared.Features.Content.SearchContentResponse search = null;
 
-            foreach (var group in groupedChannels)
-            {
-                List<Content> pictures = new List<Content>();
+			try
+			{
+				using var response = await _httpClient.GetAsync(BaseAddress + WaifuJoi.Shared.Features.Content.SearchContentRequest.Route, _cancellationTokenSource.Token);
 
-                foreach (var album in group)
-                {
-                    var response = await client.GetAsync(AlbumAddress + "/" + album.ContentId);
+				if (!response.IsSuccessStatusCode)
+				{
+					Console.WriteLine("Cannot get newest Content from WaifuJoi");
+					return;
+				}
 
-                    var model = await MessagePack.MessagePackSerializer.DeserializeAsync<ModelArray>(
-                        await response.Content.ReadAsStreamAsync());
+				search = await MessagePack.MessagePackSerializer.DeserializeAsync<WaifuJoi.Shared.Features.Content.SearchContentResponse>(await response.Content.ReadAsStreamAsync());
+			}
+			catch (Exception ex)
+			{
+				Console.WriteLine("Cannot get newest Content from WaifuJoi");
+				Console.WriteLine(ex.Message);
+				Console.WriteLine(ex.StackTrace);
+			}
 
-                    pictures.AddRange(model.Contents);
-                }
+			using DiscordContext context = new DiscordContext();
 
-                _cachedImages.Add(group.Key, pictures);
-            }
-        }
-    }
+			var channelIDs = context.SabrinaSettings.Where(ss => ss.ContentChannel != null).Select(ss => ss.ContentChannel.Value).ToArray();
+			List<DiscordChannel> channelsToPostTo = new List<DiscordChannel>();
+
+			foreach (var channelId in channelIDs)
+			{
+				if (!_client.Guilds.Any())
+				{
+					try
+					{
+						channelsToPostTo.Add(await _client.GetChannelAsync(Convert.ToUInt64(channelId)));
+					}
+					catch (Exception) { }
+				}
+				else if (_client.Guilds.Any(g => g.Value.Channels.Any(c => c.Key == Convert.ToUInt64(channelId))))
+				{
+					channelsToPostTo.Add(await _client.GetChannelAsync(Convert.ToUInt64(channelId)));
+				}
+			}
+
+			foreach (var channel in channelsToPostTo)
+			{
+				var channelIdLong = Convert.ToInt64(channel.Id);
+
+				var settings = context.SabrinaSettings.First(ss => ss.ContentChannel == channelIdLong);
+
+				var newContent = search.Content.Where(c => settings.LastWaifuJoiUpdate == null || c.CreationDate > settings.LastWaifuJoiUpdate);
+
+				foreach (var content in newContent)
+				{
+					DiscordEmbedBuilder builder = new DiscordEmbedBuilder()
+					{
+						Color = new DiscordColor(184, 86, 185),
+						ImageUrl = BaseAddress + "api/thumbnail/" + content.Id.Trim(),
+						Title = content.Title,
+						Description = content.Description,
+						Url = BaseAddress + "show/" + content.Id.Trim(),
+						Timestamp = content.CreationDate,
+						Footer = new DiscordEmbedBuilder.EmbedFooter() { IconUrl = BaseAddress + "favicon.ico", Text = $"Hosted with <3 by Waifujoi" }
+					};
+
+					if (content.Creator.DiscordId != null)
+					{
+						try
+						{
+							var creator = await _client.GetUserAsync(Convert.ToUInt64(content.Creator.DiscordId.Value));
+							builder.AddField("Creator", creator.Mention);
+						}
+						catch (Exception)
+						{ }
+					}
+					else
+					{
+						builder.AddField("Creator", content.Creator.Name);
+					}
+
+					await channel.SendMessageAsync(embed: builder).ConfigureAwait(false);
+				}
+
+				settings.LastWaifuJoiUpdate = DateTime.Now;
+			}
+
+			await context.SaveChangesAsync(_cancellationTokenSource.Token);
+		}
+
+		private async Task PostToAll()
+		{
+			Console.WriteLine("WaifuBot: Sending to all");
+			using DiscordContext context = new DiscordContext();
+
+			var channels = context.SabrinaSettings.Where(ss => ss.FeetChannel != null).Select(setting => setting.FeetChannel.Value);
+
+			foreach (var channelId in channels)
+			{
+				DiscordChannel channel = null;
+
+				if (!_cancellationTokenSource.Token.IsCancellationRequested && _client.Guilds.Any(g => g.Value.Channels.Any(c => c.Key == Convert.ToUInt64(channelId))))
+				{
+					channel = await _client.GetChannelAsync(Convert.ToUInt64(channelId));
+
+					try
+					{
+						await PostRandom(channel, _cancellationTokenSource.Token);
+					}
+					catch (Exception e)
+					{
+						Console.WriteLine("Error in WaifuJOIBot PostRandom");
+						Console.WriteLine(e);
+					}
+				}
+			}
+		}
+
+		private async Task RefreshCache()
+		{
+			Console.WriteLine("WaifuBot: refreshing cache");
+			_cachedImages.Clear();
+
+			using DiscordContext context = new DiscordContext();
+
+			var groupedChannels = context.WaifuJoiAlbum.ToLookup(album => album.ChannelId);
+			Random rnd = new Random();
+
+			foreach (var group in groupedChannels)
+			{
+				List<Content> pictures = new List<Content>();
+
+				foreach (var album in group)
+				{
+					using var response = await _httpClient.GetAsync(
+						BaseAddress + WaifuJoi.Shared.Features.Content.SearchContentRequest.Route + $"?albumid={album.ContentId}&contenttypes={(int)Content.ContentType.AlbumPicture}",
+						_cancellationTokenSource.Token);
+
+					if (!response.IsSuccessStatusCode)
+					{
+						continue;
+					}
+
+					using var stream = await response.Content.ReadAsStreamAsync();
+					var model = await MessagePack.MessagePackSerializer.DeserializeAsync<WaifuJoi.Shared.Features.Content.GetAlbumResponse>(stream);
+
+					pictures.AddRange(model.Content);
+				}
+
+				_cachedImages.Add(group.Key, pictures);
+			}
+
+			Console.WriteLine("WaifuBot: Done refreshing cache");
+		}
+	}
 }

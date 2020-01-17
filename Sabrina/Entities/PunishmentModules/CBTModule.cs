@@ -4,7 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using static Sabrina.Models.UserSettingExtension;
+using static Sabrina.Models.UserSetting;
 
 namespace Sabrina.Entities.PunishmentModules
 {
@@ -13,29 +13,29 @@ namespace Sabrina.Entities.PunishmentModules
         public CBTModule(Dictionary<SettingID, UserSetting> settings, List<WheelUserItem> items) : base(settings, items)
         {
             CBTLevel cbtLevel = CBTLevel.None;
-            if (_settings.ContainsKey(SettingID.CBTLevel))
+            if (Settings.ContainsKey(SettingID.CBTLevel))
             {
-                cbtLevel = _settings[SettingID.CBTLevel].GetValue<CBTLevel>();
+                cbtLevel = Settings[SettingID.CBTLevel].GetValue<CBTLevel>();
             }
 
             BondageLevel bondageLevel = BondageLevel.None;
-            if (_settings.ContainsKey(SettingID.BondageLevel))
+            if (Settings.ContainsKey(SettingID.BondageLevel))
             {
-                bondageLevel = _settings[SettingID.BondageLevel].GetValue<BondageLevel>();
+                bondageLevel = Settings[SettingID.BondageLevel].GetValue<BondageLevel>();
             }
 
             if (cbtLevel == CBTLevel.None || bondageLevel == BondageLevel.None)
             {
                 Chance = 0;
 
-                if (!_settings.ContainsKey(SettingID.CBTLevel))
+                if (!Settings.ContainsKey(SettingID.CBTLevel))
                 {
-                    ((List<UserSettingExtension.SettingID>)RequiredSettings).Add(UserSettingExtension.SettingID.CBTLevel);
+                    ((List<UserSetting.SettingID>)RequiredSettings).Add(UserSetting.SettingID.CBTLevel);
                 }
 
-                if (!_settings.ContainsKey(SettingID.BondageLevel))
+                if (!Settings.ContainsKey(SettingID.BondageLevel))
                 {
-                    ((List<UserSettingExtension.SettingID>)RequiredSettings).Add(UserSettingExtension.SettingID.BondageLevel);
+                    ((List<UserSetting.SettingID>)RequiredSettings).Add(UserSetting.SettingID.BondageLevel);
                 }
             }
         }
@@ -43,31 +43,29 @@ namespace Sabrina.Entities.PunishmentModules
         public override int Chance { get; internal set; } = 50;
         public override TimeSpan DenialTime { get; internal set; }
         public override DiscordEmbed Embed { get; internal set; }
-
-        public override IEnumerable<UserSettingExtension.SettingID> RequiredSettings { get; internal set; } = new List<UserSettingExtension.SettingID>();
         public override TimeSpan WheelLockTime { get; internal set; }
 
         public override Task Generate()
         {
             CBTLevel cbtLevel = CBTLevel.None;
-            if (_settings.ContainsKey(SettingID.CBTLevel))
+            if (Settings.ContainsKey(SettingID.CBTLevel))
             {
-                cbtLevel = _settings[SettingID.CBTLevel].GetValue<CBTLevel>();
+                cbtLevel = Settings[SettingID.CBTLevel].GetValue<CBTLevel>();
             }
 
-            WheelExtension.WheelDifficultyPreference difficulty = WheelExtension.WheelDifficultyPreference.Default;
-            if (_settings.ContainsKey(SettingID.WheelDifficulty))
+            UserSetting.WheelDifficultyPreference difficulty = UserSetting.WheelDifficultyPreference.Default;
+            if (Settings.ContainsKey(SettingID.WheelDifficulty))
             {
-                difficulty = _settings[SettingID.WheelDifficulty].GetValue<WheelExtension.WheelDifficultyPreference>();
+                difficulty = Settings[SettingID.WheelDifficulty].GetValue<UserSetting.WheelDifficultyPreference>();
             }
 
             BondageLevel bondageLevel = BondageLevel.None;
-            if (_settings.ContainsKey(SettingID.BondageLevel))
+            if (Settings.ContainsKey(SettingID.BondageLevel))
             {
-                bondageLevel = _settings[SettingID.BondageLevel].GetValue<BondageLevel>();
+                bondageLevel = Settings[SettingID.BondageLevel].GetValue<BondageLevel>();
             }
 
-            List<WheelUserItem> gear = _items.Where(item => WheelItemExtension.GetItemCategory((WheelItemExtension.Item)item.ItemId) == WheelItemExtension.Item.Bondage).ToList();
+            List<WheelUserItem> gear = Items.Where(item => WheelItemExtension.GetItemCategory((WheelItemExtension.Item)item.ItemId) == WheelItemExtension.Item.Bondage).ToList();
 
             const int bondageGearChance = 10;
             var bondageChancesSum = gear.Count * bondageGearChance;
@@ -124,13 +122,13 @@ namespace Sabrina.Entities.PunishmentModules
             return Task.CompletedTask;
         }
 
-        private static int GetPunishmentValue(CBTLevel level, WheelExtension.WheelDifficultyPreference difficulty)
+        private static int GetPunishmentValue(CBTLevel level, UserSetting.WheelDifficultyPreference difficulty)
         {
             int third = ((int)level * (int)difficulty * 3) / 3;
             return Helpers.RandomGenerator.RandomInt(third * 2, third * 4);
         }
 
-        private DiscordEmbed GenerateBondagePunishment(WheelItemExtension.Item gear, BondageLevel bondageLevel, CBTLevel cbtLevel, WheelExtension.WheelDifficultyPreference difficulty)
+        private DiscordEmbed GenerateBondagePunishment(WheelItemExtension.Item gear, BondageLevel bondageLevel, CBTLevel cbtLevel, UserSetting.WheelDifficultyPreference difficulty)
         {
             var builder = new DiscordEmbedBuilder
             {

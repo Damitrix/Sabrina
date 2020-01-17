@@ -4,29 +4,29 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using static Sabrina.Models.UserSettingExtension;
+using static Sabrina.Models.UserSetting;
 
 namespace Sabrina.Entities.PunishmentModules
 {
     internal class AnalModule : PunishmentModule
     {
-        public AnalModule(Dictionary<UserSettingExtension.SettingID, UserSetting> settings, List<WheelUserItem> items) : base(settings, items)
+        public AnalModule(Dictionary<UserSetting.SettingID, UserSetting> settings, List<WheelUserItem> items) : base(settings, items)
         {
             AnalLevel analLevel = AnalLevel.None;
-            if (_settings.ContainsKey(SettingID.AnalLevel))
+            if (Settings.ContainsKey(SettingID.AnalLevel))
             {
-                analLevel = _settings[SettingID.AnalLevel].GetValue<AnalLevel>();
+                analLevel = Settings[SettingID.AnalLevel].GetValue<AnalLevel>();
             }
 
-            List<WheelUserItem> toys = _items.Where(item => WheelItemExtension.GetItemCategory((WheelItemExtension.Item)item.ItemId) == WheelItemExtension.Item.Toy).ToList();
+            List<WheelUserItem> toys = Items.Where(item => WheelItemExtension.GetItemCategory((WheelItemExtension.Item)item.ItemId) == WheelItemExtension.Item.Toy).ToList();
 
             if (analLevel == AnalLevel.None || !toys.Any())
             {
                 Chance = 0;
 
-                if (!_settings.ContainsKey(SettingID.AnalLevel))
+                if (!Settings.ContainsKey(SettingID.AnalLevel))
                 {
-                    ((List<UserSettingExtension.SettingID>)RequiredSettings).Add(UserSettingExtension.SettingID.AnalLevel);
+                    ((List<UserSetting.SettingID>)RequiredSettings).Add(UserSetting.SettingID.AnalLevel);
                 }
             }
         }
@@ -34,25 +34,23 @@ namespace Sabrina.Entities.PunishmentModules
         public override int Chance { get; internal set; } = 50;
         public override TimeSpan DenialTime { get; internal set; }
         public override DiscordEmbed Embed { get; internal set; }
-
-        public override IEnumerable<UserSettingExtension.SettingID> RequiredSettings { get; internal set; } = new List<UserSettingExtension.SettingID>();
         public override TimeSpan WheelLockTime { get; internal set; }
 
         public override Task Generate()
         {
-            WheelExtension.WheelDifficultyPreference difficulty = WheelExtension.WheelDifficultyPreference.Default;
-            if (_settings.ContainsKey(SettingID.WheelDifficulty))
+            UserSetting.WheelDifficultyPreference difficulty = UserSetting.WheelDifficultyPreference.Default;
+            if (Settings.ContainsKey(SettingID.WheelDifficulty))
             {
-                difficulty = _settings[SettingID.WheelDifficulty].GetValue<WheelExtension.WheelDifficultyPreference>();
+                difficulty = Settings[SettingID.WheelDifficulty].GetValue<UserSetting.WheelDifficultyPreference>();
             }
 
             AnalLevel analLevel = AnalLevel.None;
-            if (_settings.ContainsKey(SettingID.AnalLevel))
+            if (Settings.ContainsKey(SettingID.AnalLevel))
             {
-                analLevel = _settings[SettingID.AnalLevel].GetValue<AnalLevel>();
+                analLevel = Settings[SettingID.AnalLevel].GetValue<AnalLevel>();
             }
 
-            List<WheelUserItem> toys = _items.Where(item => WheelItemExtension.GetItemCategory((WheelItemExtension.Item)item.ItemId) == WheelItemExtension.Item.Toy).ToList();
+            List<WheelUserItem> toys = Items.Where(item => WheelItemExtension.GetItemCategory((WheelItemExtension.Item)item.ItemId) == WheelItemExtension.Item.Toy).ToList();
 
             var toy = (WheelItemExtension.Item)toys[Helpers.RandomGenerator.RandomInt(0, toys.Count)].ItemId;
 

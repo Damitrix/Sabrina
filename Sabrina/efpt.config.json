@@ -1,0 +1,38 @@
+﻿{
+   "ContextClassName": "SankakuContext",
+   "ContextNamespace": null,
+   "DefaultDacpacSchema": null,
+   "DoNotCombineNamespace": false,
+   "IdReplace": false,
+   "IncludeConnectionString": false,
+   "ModelNamespace": null,
+   "OutputContextPath": null,
+   "OutputPath": "SankakuModel",
+   "ProjectRootNamespace": "Sabrina",
+   "SelectedHandlebarsLanguage": 0,
+   "SelectedToBeGenerated": 0,
+   "Tables": [
+      {
+         "HasPrimaryKey": true,
+         "Name": "[dbo].[Image]"
+      },
+      {
+         "HasPrimaryKey": true,
+         "Name": "[dbo].[ImageTag]"
+      },
+      {
+         "HasPrimaryKey": true,
+         "Name": "[dbo].[ImageVote]"
+      },
+      {
+         "HasPrimaryKey": true,
+         "Name": "[dbo].[Tag]"
+      }
+   ],
+   "UseDatabaseNames": false,
+   "UseFluentApiOnly": true,
+   "UseHandleBars": false,
+   "UseInflector": false,
+   "UseLegacyPluralizer": false,
+   "UseSpatial": false
+}

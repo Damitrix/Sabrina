@@ -45,7 +45,17 @@ namespace Sabrina.Entities
                 {
                     var dif = CalculateDifference(text, key);
 
-                    _score += text.Length - dif;
+                    if (_score == 0)
+                    {
+                        _score = text.Length - dif;
+                    }
+                    else
+                    {
+                        if (text.Length - dif > _score)
+                        {
+                            _score = text.Length - dif;
+                        }
+                    }
                 }
             }
 
